@@ -1,0 +1,36 @@
+{
+  "name": "局域网共享文件池",
+  "short_name": "共享文件池",
+  "description": "局域网内可视化访问共享文件夹，支持分类浏览、缩略图预览、文件备注",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f8fafc",
+  "theme_color": "#3b82f6",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📁</text></svg>",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ],
+  "categories": ["productivity", "utilities"],
+  "screenshots": [],
+  "shortcuts": [
+    {
+      "name": "图片",
+      "short_name": "图片",
+      "description": "查看图片文件",
+      "url": "/?category=image",
+      "icons": [{ "src": "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🖼️</text></svg>", "sizes": "96x96" }]
+    },
+    {
+      "name": "文档",
+      "short_name": "文档",
+      "description": "查看文档文件",
+      "url": "/?category=document",
+      "icons": [{ "src": "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📄</text></svg>", "sizes": "96x96" }]
+    }
+  ]
+}
