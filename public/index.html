@@ -2110,6 +2110,13 @@
 
   /* ---------- 启动（异步，从后端加载真实数据） ---------- */
   async function boot () {
+    // 先用当前数据（demo mock 或本地缓存）立即渲染，避免白屏 / 只显示头部
+    setupFileDnD()
+    setupGroupDnD()
+    renderFolderStrip()
+    renderNoteWall()
+    renderViews()
+
     try {
       var results = await Promise.allSettled([
         fetch('/api/files'),
@@ -2140,12 +2147,24 @@
       }
     } catch (e) { /* 后端不可用，保持 demo mock */ }
 
-    setupFileDnD()
-    setupGroupDnD()
+    // 拿到后端数据后重渲染
     renderFolderStrip()
     renderNoteWall()
     renderViews()
   }
+
+  // 任何未捕获异常都提示出来，避免整页静默空白
+  window.addEventListener('error', function (e) {
+    var box = document.getElementById('bootError')
+    if (!box) {
+      box = document.createElement('div')
+      box.id = 'bootError'
+      box.style.cssText = 'position:fixed;left:0;right:0;bottom:0;background:#7f1d1d;color:#fff;padding:10px 14px;font-size:13px;z-index:9999;white-space:pre-wrap'
+      document.body.appendChild(box)
+    }
+    box.textContent = '页面脚本出错：' + (e.message || e.error) + '（请截图此信息反馈）'
+  })
+
   boot()
 })()
 </script>

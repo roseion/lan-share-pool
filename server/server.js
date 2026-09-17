@@ -300,7 +300,7 @@ const server = http.createServer(async (req, res) => {
       console.error('[static]', filePath, e.message)
       if (!res.headersSent) { res.writeHead(500); res.end('Server Error') } else res.destroy()
     })
-    res.writeHead(200, { 'Content-Type': MIME[ext] || DEFAULT_MIME })
+    res.writeHead(200, { 'Content-Type': MIME[ext] || DEFAULT_MIME, 'Cache-Control': 'no-cache, no-store, must-revalidate' })
     rs.pipe(res)
   } catch (err) {
     console.error('[server]', err)
@@ -319,7 +319,8 @@ export async function start (port) {
   }
   await new Promise((resolve, reject) => {
     server.once('error', reject)
-    server.listen(port, '0.0.0.0', () => {
+    // 不指定 host：Node 默认双栈监听（Windows 上同时接受 IPv4 与 IPv6 localhost）
+    server.listen(port, () => {
       server.removeListener('error', reject)
       console.log(`[共享文件池] 已启动 → http://0.0.0.0:${port}`)
       console.log(`[共享文件池] 本地 → http://localhost:${port}`)
