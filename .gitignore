@@ -1,0 +1,8 @@
+.repo_memory/
+
+# 运行时产物（本地配置 / SQLite 数据库 / 上传缓存）
+config.json
+data/
+
+# demo 阶段的废弃服务器（硬编码路径、指向不存在的 dist）
+demo/server.js

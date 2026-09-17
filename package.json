@@ -1,0 +1,14 @@
+{
+  "name": "lan-share-pool",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "局域网共享文件池可视化系统",
+  "scripts": {
+    "start": "node server/server.js",
+    "test": "node --test test/*.test.js"
+  },
+  "engines": {
+    "node": ">=22.5.0"
+  }
+}

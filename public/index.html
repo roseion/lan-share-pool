@@ -1,0 +1,2153 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>共享文件池</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  :root {
+    --bg: #f8fafc;
+    --card: #ffffff;
+    --border: #e2e8f0;
+    --text: #0f172a;
+    --text-2: #64748b;
+    --accent: #2563eb;
+    --accent-2: #1d4ed8;
+    --radius: 12px;
+  }
+  html.dark {
+    --bg: #0f172a;
+    --card: #1e293b;
+    --border: #334155;
+    --text: #f1f5f9;
+    --text-2: #94a3b8;
+    --accent: #3b82f6;
+    --accent-2: #2563eb;
+  }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC",
+      "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* ---------- Header ---------- */
+  header {
+    position: sticky; top: 0; z-index: 20;
+    background: var(--card);
+    border-bottom: 1px solid var(--border);
+    box-shadow: 0 1px 3px rgba(0,0,0,.04);
+  }
+  .header-inner {
+    max-width: 1280px; margin: 0 auto;
+    padding: 12px 16px;
+    display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  }
+  .brand { display: flex; align-items: center; gap: 10px; }
+  .brand svg { width: 30px; height: 30px; color: var(--accent); flex-shrink: 0; }
+  .brand h1 { font-size: 18px; font-weight: 700; line-height: 1.2; }
+  .brand p { font-size: 11px; color: var(--text-2); }
+  .header-actions { display: flex; align-items: center; gap: 8px; }
+  .header-actions span.count,
+  .header-actions span.mobile-hint { font-size: 13px; color: var(--text-2); margin-right: 6px; }
+  .icon-btn {
+    width: 36px; height: 36px; border: none; border-radius: 8px;
+    background: transparent; color: var(--text-2); cursor: pointer;
+    display: inline-flex; align-items: center; justify-content: center;
+    transition: background .15s, color .15s;
+  }
+  .icon-btn:hover { background: var(--bg); color: var(--text); }
+  .icon-btn svg { width: 18px; height: 18px; }
+  .mobile-hint { display: none; }
+  @media (max-width: 640px) { .mobile-hint { display: inline; } .desktop-hint { display: none; } }
+  .icon-btn.highlight { color: var(--accent); }
+
+  /* ---------- Upload toast ---------- */
+  .toast {
+    position: fixed; left: 50%; top: 14px; transform: translateX(-50%) translateY(-80px);
+    background: var(--text); color: var(--bg); padding: 10px 18px;
+    border-radius: 10px; font-size: 13px; z-index: 60;
+    opacity: 0; transition: transform .25s, opacity .25s;
+    box-shadow: 0 4px 16px rgba(0,0,0,.2); pointer-events: none;
+  }
+  .toast.show { transform: translateX(-50%) translateY(0); opacity: 1; }
+
+  /* ---------- Search overlay ---------- */
+  .search-bar {
+    max-width: 1280px; margin: 0 auto; padding: 0 16px 10px;
+    display: none;
+  }
+  .search-bar.open { display: block; }
+  .search-input {
+    width: 100%; padding: 8px 12px;
+    border: 1px solid var(--border); border-radius: 8px;
+    background: var(--bg); color: var(--text); font-size: 14px;
+  }
+  .search-input:focus { outline: none; border-color: var(--accent); }
+
+  /* ---------- Folder strip / settings ---------- */
+  .folder-strip {
+    max-width: 1280px; margin: 0 auto; padding: 0 16px 10px;
+  }
+  .folder-strip .chip-row { display: flex; gap: 6px; flex-wrap: wrap; }
+  .folder-chip {
+    display: inline-flex; align-items: center; gap: 6px;
+    font-size: 12px; color: var(--text-2);
+    background: var(--card); border: 1px solid var(--border);
+    padding: 3px 12px; border-radius: 8px;
+  }
+  .folder-chip b { color: var(--text); font-weight: 600; }
+  .folder-list-head {
+    display: flex; flex-direction: column; gap: 8px; margin-bottom: 6px;
+  }
+  .folder-row {
+    display: flex; align-items: center; justify-content: space-between; gap: 8px;
+    padding: 8px 10px; border: 1px solid var(--border); border-radius: 10px;
+    margin-bottom: 6px; background: var(--card);
+  }
+  .folder-row .folder-path {
+    font-size: 13px; font-family: Consolas, Menlo, monospace; color: var(--text);
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+
+  /* ---------- 留言板 / 便利贴 ---------- */
+  .note-wall {
+    margin: 14px 0;
+    background: var(--card); border: 1px solid var(--border);
+    border-radius: var(--radius); overflow: hidden;
+  }
+  .note-wall-head {
+    display: flex; align-items: center; gap: 10px;
+    padding: 12px 16px; cursor: pointer; user-select: none;
+  }
+  .note-wall-head:hover { background: rgba(100,116,139,.05); }
+  .note-wall-head .nw-chevron {
+    width: 22px; height: 22px; flex-shrink: 0;
+    display: inline-flex; align-items: center; justify-content: center;
+    color: var(--text-2); transition: transform .2s;
+  }
+  .note-wall.collapsed .nw-chevron { transform: rotate(-90deg); }
+  .nw-chevron svg { width: 16px; height: 16px; }
+  .note-wall-head .nw-title { font-size: 15px; font-weight: 700; }
+  .note-wall-head .nw-sub { font-size: 12px; color: var(--text-2); }
+  .note-wall-head .nw-add { margin-left: auto; }
+  .note-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 12px; padding: 4px 16px 16px;
+  }
+  .note-wall.collapsed .note-grid { display: none; }
+  .note {
+    position: relative; padding: 14px 14px 12px;
+    border-radius: 3px; min-height: 84px;
+    box-shadow: 2px 4px 10px rgba(0,0,0,.13);
+    color: #27272a;
+    transform: rotate(var(--twist, 0deg));
+    transition: transform .15s, box-shadow .15s;
+  }
+  .note:hover { transform: rotate(0deg) scale(1.02); box-shadow: 4px 8px 18px rgba(0,0,0,.18); }
+  .note.yellow { background: #fef08a; --twist: -.6deg; }
+  .note.pink { background: #fbcfe8; --twist: .7deg; }
+  .note.blue { background: #bfdbfe; --twist: -.8deg; }
+  .note.green { background: #bbf7d0; --twist: .6deg; }
+  .note.orange { background: #fed7aa; --twist: -.4deg; }
+  .note::after {
+    content: ''; position: absolute; top: 0; right: 0;
+    width: 20px; height: 20px;
+    background: linear-gradient(135deg, transparent 50%, rgba(0,0,0,.08) 50%);
+    border-bottom-left-radius: 4px;
+  }
+  .note .note-body { font-size: 13px; line-height: 1.65; word-break: break-word; }
+  .note .note-body p { margin: 0 0 6px; }
+  .note .note-body p:last-child { margin-bottom: 0; }
+  .note .note-body a { color: #1d4ed8; text-decoration: underline; }
+  .note .note-body ul { margin: 4px 0; padding-left: 18px; }
+  .note .note-body b, .note .note-body strong { font-weight: 700; }
+  .note .note-body em, .note .note-body i { font-style: italic; }
+  .note .note-time { margin-top: 8px; font-size: 11px; color: rgba(39,39,42,.55); display: flex; align-items: center; gap: 10px; }
+  .note .note-time .note-tags { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .note-ops {
+    position: absolute; top: 6px; right: 6px;
+    display: flex; gap: 4px; opacity: 0; transition: opacity .15s; z-index: 2;
+  }
+  .note:hover .note-ops { opacity: 1; }
+  .note-ops button {
+    width: 26px; height: 26px; border: none; border-radius: 6px;
+    background: rgba(255,255,255,.9); box-shadow: 0 1px 3px rgba(0,0,0,.12);
+    display: inline-flex; align-items: center; justify-content: center;
+    color: #27272a; cursor: pointer;
+  }
+  .note-ops button:hover { background: #fff; color: #1d4ed8; }
+  .note-ops svg { width: 14px; height: 14px; }
+  .note-empty { padding: 26px 16px; text-align: center; color: var(--text-2); font-size: 13px; }
+
+  /* 富文本编辑器 */
+  .note-editor-toolbar {
+    display: flex; gap: 4px; flex-wrap: wrap; align-items: center;
+    padding: 8px 10px; border: 1px solid var(--border); border-bottom: none;
+    border-radius: 8px 8px 0 0; background: var(--bg);
+  }
+  .note-editor-toolbar button {
+    width: 34px; height: 30px; border: none; border-radius: 6px;
+    background: transparent; color: var(--text); cursor: pointer;
+    font-size: 14px; font-weight: 600; display: inline-flex; align-items: center; justify-content: center;
+  }
+  .note-editor-toolbar button:hover { background: rgba(100,116,139,.15); }
+  .note-editor-toolbar .tsep { width: 1px; height: 18px; background: var(--border); margin: 0 4px; }
+  .note-editor-toolbar .tbtn-wide { width: auto; padding: 0 10px; font-weight: 500; font-size: 12px; color: var(--text-2); }
+  .note-editor {
+    min-height: 150px; max-height: 40vh; overflow-y: auto;
+    padding: 12px; border: 1px solid var(--border); border-radius: 0 0 8px 8px;
+    outline: none; font-size: 14px; line-height: 1.7;
+    background: var(--card); color: var(--text);
+  }
+  .note-editor:focus { border-color: var(--accent); }
+  .note-editor:empty::before { content: attr(data-placeholder); color: var(--text-2); pointer-events: none; }
+  .note-editor a { color: var(--accent); text-decoration: underline; }
+  .note-colors { display: flex; gap: 8px; }
+  .note-color {
+    width: 30px; height: 30px; border-radius: 50%; cursor: pointer;
+    border: 3px solid transparent; box-shadow: inset 0 0 0 1px rgba(0,0,0,.1);
+    transition: transform .12s;
+  }
+  .note-color:hover { transform: scale(1.12); }
+  .note-color.active { border-color: var(--text); transform: scale(1.12); }
+
+  /* ---------- Tabs ---------- */
+  nav.tabs {
+    position: sticky; top: 57px; z-index: 15;
+    background: var(--bg);
+    max-width: 1280px; margin: 0 auto; padding: 0 16px 10px;
+  }
+  .tab-list { display: flex; gap: 8px; overflow-x: auto; scrollbar-width: thin; }
+  .tab {
+    flex-shrink: 0; display: inline-flex; align-items: center; gap: 6px;
+    padding: 7px 16px; border-radius: 999px;
+    border: none; cursor: pointer;
+    font-size: 14px; font-weight: 500;
+    background: transparent; color: var(--text-2);
+    transition: all .15s;
+  }
+  .tab:hover { background: rgba(100,116,139,.12); color: var(--text); }
+  .tab.active { background: var(--accent); color: #fff; box-shadow: 0 2px 8px rgba(37,99,235,.35); }
+  .tab .tab-count {
+    padding: 1px 8px; border-radius: 999px; font-size: 12px; font-weight: 600;
+    background: rgba(100,116,139,.15); color: var(--text-2);
+  }
+  .tab.active .tab-count { background: rgba(255,255,255,.25); color: #fff; }
+  .tab-sep {
+    width: 1px; align-self: stretch; background: var(--border); margin: 2px 4px; flex-shrink: 0;
+  }
+
+  /* ---------- File grid ---------- */
+  main { flex: 1; max-width: 1280px; margin: 0 auto; padding: 0 16px; width: 100%; }
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+    gap: 14px;
+    justify-content: start;
+  }
+  @media (max-width: 640px) {
+    .grid { grid-template-columns: repeat(2, 1fr); gap: 10px; }
+    .header-inner { padding: 10px 12px; }
+    nav.tabs { top: 55px; }
+  }
+  .empty { text-align: center; padding: 64px 16px; color: var(--text-2); }
+  .empty .big { font-size: 56px; margin-bottom: 8px; }
+
+  /* ---------- File card ---------- */
+  .card {
+    position: relative; background: var(--card);
+    border: 1px solid var(--border); border-radius: var(--radius);
+    overflow: hidden; cursor: pointer;
+    box-shadow: 0 1px 2px rgba(0,0,0,.04);
+    transition: transform .15s, box-shadow .15s;
+    outline: none;
+  }
+  .card:hover, .card:focus-visible {
+    box-shadow: 0 8px 20px rgba(0,0,0,.12);
+    transform: translateY(-2px);
+  }
+  .thumb {
+    position: relative; aspect-ratio: 4/3;
+    background: var(--bg); overflow: hidden;
+  }
+  .thumb img {
+    width: 100%; height: 100%; object-fit: cover;
+    display: block;
+  }
+  .thumb.plain {
+    display: flex; flex-direction: column;
+    align-items: flex-start; justify-content: flex-end;
+    padding: 12px;
+  }
+  .thumb.plain .icon { font-size: 42px; line-height: 1; margin-bottom: auto; }
+  .thumb.plain .icon::after { content: none; }
+  .thumb.plain .ext-label {
+    font-size: 11px; letter-spacing: .06em; text-transform: uppercase; color: var(--text-2);
+    background: rgba(100,116,139,.1); padding: 2px 8px; border-radius: 6px;
+  }
+  .thumb .play-overlay {
+    position: absolute; inset: 0;
+    background: rgba(0,0,0,.28); display: flex; align-items: center; justify-content: center;
+  }
+  .thumb .play-overlay svg { width: 42px; height: 42px; color: rgba(255,255,255,.92); filter: drop-shadow(0 2px 4px rgba(0,0,0,.4)); }
+  .thumb .cat-badge {
+    position: absolute; bottom: 6px; right: 6px;
+    padding: 2px 8px; border-radius: 6px; font-size: 11px; font-weight: 600; color: #fff;
+  }
+  .cat-image .cat-badge { background: #3b82f6; }
+  .cat-video .cat-badge { background: #10b981; }
+  .cat-document .cat-badge { background: #f59e0b; }
+  .cat-code .cat-badge { background: #14b8a6; }
+  .cat-archive .cat-badge { background: #f97316; }
+  .cat-app .cat-badge { background: #8b5cf6; }
+  .cat-other .cat-badge { background: #94a3b8; }
+  .annotated-mark {
+    position: absolute; top: 6px; right: 6px;
+    background: var(--accent); color: #fff;
+    font-size: 11px; padding: 2px 8px; border-radius: 999px;
+    display: flex; align-items: center; gap: 3px;
+  }
+  .annotated-mark svg { width: 12px; height: 12px; }
+  .card-body {
+    padding: 10px 12px 12px;
+    border-top: 1px solid var(--border);
+  }
+  .card-name { font-size: 13.5px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .card-meta { margin-top: 4px; font-size: 12px; color: var(--text-2); display: flex; justify-content: space-between; }
+  .card-note {
+    margin-top: 6px; font-size: 12px; line-height: 1.5; color: #92400e;
+    background: rgba(245,158,11,.12); border-radius: 6px; padding: 3px 8px;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  html.dark .card-note { color: #fcd34d; background: rgba(245,158,11,.15); }
+  .card[draggable='true'] { cursor: grab; }
+  .card.dragging { opacity: .4; }
+  .card.drop-over { border-color: var(--accent); box-shadow: 0 0 0 2px rgba(37,99,235,.25); }
+  .group-card[draggable='true'] { cursor: grab; }
+  .group-card.dragging { opacity: .4; }
+  .group-card.drop-over { border-color: var(--accent); box-shadow: 0 0 0 2px rgba(37,99,235,.25); }
+  .hover-actions {
+    position: absolute; top: 6px; left: 6px;
+    display: flex; gap: 6px;
+    opacity: 0; transition: opacity .15s; z-index: 3;
+  }
+  .card:hover .hover-actions, .card:focus-visible .hover-actions { opacity: 1; }
+  .mini-btn {
+    width: 32px; height: 32px; border: none; border-radius: 8px;
+    background: rgba(255,255,255,.92); backdrop-filter: blur(4px);
+    box-shadow: 0 1px 4px rgba(0,0,0,.15);
+    display: inline-flex; align-items: center; justify-content: center;
+    color: var(--text-2); cursor: pointer; transition: color .15s, background .15s;
+  }
+  .mini-btn:hover { color: var(--accent); background: #fff; }
+  .mini-btn svg { width: 17px; height: 17px; }
+  @media (max-width: 640px) { .hover-actions { display: none; } }
+
+  /* ---------- Group view ---------- */
+  .group-view { padding-bottom: 24px; }
+  .group-toolbar {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 12px 0; gap: 10px;
+  }
+  .group-toolbar h2 { font-size: 16px; font-weight: 700; }
+  .group-toolbar .hint { font-size: 12px; color: var(--text-2); }
+  .primary-btn {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 8px 16px; border: none; border-radius: 10px; cursor: pointer;
+    background: var(--accent); color: #fff; font-size: 14px; font-weight: 600;
+    transition: background .15s;
+  }
+  .primary-btn:hover { background: var(--accent-2); }
+  .primary-btn svg { width: 16px; height: 16px; }
+  .group-card {
+    background: var(--card); border: 1px solid var(--border);
+    border-radius: var(--radius); margin-bottom: 14px; overflow: hidden;
+  }
+  .group-head {
+    display: flex; align-items: center; gap: 10px;
+    padding: 13px 16px; cursor: pointer; user-select: none;
+  }
+  .group-head:hover { background: rgba(100,116,139,.05); }
+  .group-chevron {
+    width: 22px; height: 22px; flex-shrink: 0;
+    display: inline-flex; align-items: center; justify-content: center;
+    color: var(--text-2); transition: transform .2s;
+  }
+  .group-card.open .group-chevron { transform: rotate(90deg); }
+  .group-chevron svg { width: 16px; height: 16px; }
+  .group-name { font-size: 15px; font-weight: 700; flex-shrink: 0; }
+  .group-note {
+    font-size: 12px; color: var(--text-2); flex: 1; min-width: 0;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .group-count {
+    flex-shrink: 0; font-size: 12px; font-weight: 600;
+    background: rgba(100,116,139,.12); color: var(--text-2);
+    padding: 2px 10px; border-radius: 999px;
+  }
+  .group-ops { display: flex; gap: 2px; flex-shrink: 0; }
+  .group-ops .icon-btn { width: 30px; height: 30px; }
+  .group-body { padding: 0 16px 16px; }
+  .group-card:not(.open) .group-body { display: none; }
+  .group-empty {
+    text-align: center; color: var(--text-2); font-size: 13px;
+    padding: 18px 0 6px;
+  }
+
+  /* ---------- Modal / popover ---------- */
+  .modal-mask {
+    position: fixed; inset: 0; z-index: 70;
+    background: rgba(0,0,0,.4); backdrop-filter: blur(2px);
+    display: none; align-items: center; justify-content: center; padding: 20px;
+  }
+  .modal-mask.open { display: flex; }
+  .modal {
+    background: var(--card); border-radius: 14px; width: 100%; max-width: 380px;
+    box-shadow: 0 16px 48px rgba(0,0,0,.25);
+    display: flex; flex-direction: column; max-height: 80vh;
+  }
+  .modal header {
+    position: static;
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 14px 16px; border-bottom: 1px solid var(--border);
+  }
+  .modal header h3 { font-size: 15px; font-weight: 700; }
+  .modal .mbody { padding: 14px 16px; overflow-y: auto; }
+  .modal .mfoot {
+    display: flex; gap: 10px; padding: 12px 16px; border-top: 1px solid var(--border);
+  }
+  .modal .mfoot button { flex: 1; padding: 9px; border: none; border-radius: 9px; font-size: 14px; font-weight: 600; cursor: pointer; }
+  .mbtn-primary { background: var(--accent); color: #fff; }
+  .mbtn-primary:hover { background: var(--accent-2); }
+  .mbtn-ghost { background: var(--bg); color: var(--text); }
+  .mbtn-ghost:hover { filter: brightness(.96); }
+  .mbtn-danger { background: #ef4444; color: #fff; }
+  .mbtn-danger:hover { background: #dc2626; }
+  .form-row { margin-bottom: 12px; }
+  .form-row label { display: block; font-size: 12px; font-weight: 600; color: var(--text-2); margin-bottom: 4px; }
+  .form-row input, .form-row textarea {
+    width: 100%; padding: 8px 10px; font-size: 14px;
+    border: 1px solid var(--border); border-radius: 8px;
+    background: var(--card); color: var(--text); resize: none;
+  }
+  .form-row input:focus, .form-row textarea:focus { outline: none; border-color: var(--accent); }
+  .group-pick-list { display: flex; flex-direction: column; gap: 2px; }
+  .group-pick {
+    display: flex; align-items: center; gap: 10px;
+    padding: 9px 10px; border-radius: 8px; cursor: pointer;
+    transition: background .12s;
+  }
+  .group-pick:hover { background: rgba(100,116,139,.08); }
+  .group-pick .g-icon {
+    width: 32px; height: 32px; flex-shrink: 0; border-radius: 8px;
+    background: rgba(37,99,235,.1); color: var(--accent);
+    display: inline-flex; align-items: center; justify-content: center; font-size: 16px;
+  }
+  .group-pick .g-meta { flex: 1; min-width: 0; }
+  .group-pick .g-meta .t { font-size: 14px; font-weight: 600; }
+  .group-pick .g-meta .d { font-size: 12px; color: var(--text-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .group-pick .check {
+    width: 20px; height: 20px; flex-shrink: 0; border-radius: 6px;
+    border: 2px solid var(--border); display: inline-flex; align-items: center; justify-content: center;
+    color: transparent; font-size: 13px; font-weight: 700;
+  }
+  .group-pick.in .check { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .new-group-inline {
+    margin-top: 8px; display: flex; gap: 8px;
+  }
+  .new-group-inline input {
+    flex: 1; padding: 8px 10px; font-size: 14px;
+    border: 1px solid var(--border); border-radius: 8px; background: var(--card); color: var(--text);
+  }
+  .new-group-inline input:focus { outline: none; border-color: var(--accent); }
+
+  /* ---------- Annotation drawer ---------- */
+  .drawer-mask {
+    position: fixed; inset: 0; z-index: 50;
+    background: rgba(0,0,0,.35); backdrop-filter: blur(2px);
+    opacity: 0; visibility: hidden; transition: opacity .2s;
+  }
+  .drawer-mask.open { opacity: 1; visibility: visible; }
+  .drawer {
+    position: fixed; top: 0; right: 0; bottom: 0; z-index: 51;
+    width: 100%; max-width: 420px;
+    background: var(--card);
+    box-shadow: -8px 0 28px rgba(0,0,0,.18);
+    transform: translateX(100%);
+    transition: transform .25s ease;
+    display: flex; flex-direction: column;
+  }
+  .drawer.open { transform: translateX(0); }
+  .drawer header {
+    position: static; display: flex; align-items: center; justify-content: space-between;
+    padding: 16px; border-bottom: 1px solid var(--border);
+  }
+  .drawer header h2 { font-size: 16px; font-weight: 600; }
+  .drawer .file-info {
+    padding: 14px 16px; border-bottom: 1px solid var(--border); background: var(--bg);
+    display: flex; gap: 12px; align-items: center;
+  }
+  .drawer .file-info .ficon {
+    width: 46px; height: 46px; flex-shrink: 0;
+    background: var(--card); border-radius: 10px;
+    display: flex; align-items: center; justify-content: center; font-size: 22px;
+  }
+  .drawer .file-info .fname { font-weight: 600; font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .drawer .file-info .fpath { font-size: 12px; color: var(--text-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .drawer .edit-area { flex: 1; padding: 16px; display: flex; flex-direction: column; gap: 8px; overflow-y: auto; }
+  .drawer label { font-size: 13px; font-weight: 600; }
+  .drawer label kbd {
+    margin-left: 6px; padding: 1px 6px; font-size: 11px; font-weight: 500;
+    background: var(--bg); border: 1px solid var(--border); border-radius: 4px;
+    color: var(--text-2); font-family: inherit;
+  }
+  .drawer textarea {
+    flex: 1; resize: none; padding: 12px; min-height: 180px;
+    border: 1px solid var(--border); border-radius: 10px;
+    background: var(--card); color: var(--text); font-size: 14px; line-height: 1.6;
+    font-family: inherit;
+  }
+  .drawer textarea:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px rgba(37,99,235,.15); }
+  .drawer .hint { font-size: 12px; color: var(--text-2); }
+  .drawer footer {
+    display: flex; gap: 10px; padding: 14px 16px; border-top: 1px solid var(--border);
+  }
+  .drawer footer button {
+    flex: 1; padding: 10px; border: none; border-radius: 10px;
+    font-size: 14px; font-weight: 600; cursor: pointer; transition: filter .15s;
+  }
+  .btn-close { background: var(--bg); color: var(--text); }
+  .btn-close:hover { filter: brightness(.96); }
+  .btn-save { background: var(--accent); color: #fff; }
+  .btn-save:hover { background: var(--accent-2); }
+  .drawer footer button:disabled { opacity: .6; cursor: not-allowed; }
+
+  /* ---------- Footer (mobile) ---------- */
+  footer.footer {
+    position: sticky; bottom: 0; z-index: 10;
+    display: none;
+    background: var(--card); border-top: 1px solid var(--border);
+    padding: 10px 16px; font-size: 12px; color: var(--text-2);
+    justify-content: space-between; align-items: center;
+  }
+  @media (max-width: 640px) { footer.footer { display: flex; } }
+  .footer-upload {
+    display: inline-flex; align-items: center; gap: 5px;
+    background: var(--accent); color: #fff; border: none;
+    padding: 6px 14px; border-radius: 999px; font-size: 12px; font-weight: 600; cursor: pointer;
+  }
+  .footer-upload svg { width: 14px; height: 14px; }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="header-inner">
+    <div class="brand">
+      <svg fill="currentColor" viewBox="0 0 24 24">
+        <path d="M10 4H4a2 2 0 00-2 2v12a2 2 0 002 2h16a2 2 0 002-2V8a2 2 0 00-2-2h-8l-2-2z"/>
+      </svg>
+      <div>
+        <h1>共享文件池</h1>
+        <p>局域网内可视化文件浏览</p>
+      </div>
+    </div>
+    <div class="header-actions">
+      <span class="count desktop-hint" id="totalCount"></span>
+      <button class="icon-btn" id="uploadBtn" aria-label="上传" title="上传文件">
+        <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M7.5 8.25L12 3.75l4.5 4.5M12 3.75v12"/>
+        </svg>
+      </button>
+      <button class="icon-btn" id="groupToggleBtn" aria-label="分组" title="分组视图">
+        <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M2.25 12.75V12A2.25 2.25 0 014.5 9.75h15A2.25 2.25 0 0121.75 12v.75m-8.69-6.44l-2.12-2.12a1.5 1.5 0 00-1.061-.44H4.5A2.25 2.25 0 002.25 6v12a2.25 2.25 0 002.25 2.25h15A2.25 2.25 0 0021.75 18V9a2.25 2.25 0 00-2.25-2.25h-5.379a1.5 1.5 0 01-1.06-.44z"/>
+        </svg>
+      </button>
+      <button class="icon-btn" id="settingsBtn" aria-label="设置" title="设置共享文件夹">
+        <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M10.343 3.94c.09-.542.56-.94 1.11-.94h1.093c.55 0 1.02.398 1.11.94l.149.894c.07.424.384.764.78.93.398.164.855.142 1.205-.108l.737-.527a1.125 1.125 0 011.45.12l.773.774c.39.389.44 1.002.12 1.45l-.527.737c-.25.35-.272.806-.107 1.204.165.397.505.71.93.78l.893.15c.543.09.94.56.94 1.109v1.094c0 .55-.397 1.02-.94 1.11l-.893.149c-.425.07-.765.383-.93.78-.165.398-.143.854.107 1.204l.527.738c.32.447.269 1.06-.12 1.45l-.774.773a1.125 1.125 0 01-1.449.12l-.738-.527c-.35-.25-.806-.272-1.203-.107-.397.165-.71.505-.781.929l-.149.894c-.09.542-.56.94-1.11.94h-1.094c-.55 0-1.019-.398-1.11-.94l-.148-.894c-.071-.424-.384-.764-.781-.93-.398-.165-.854-.143-1.204.108l-.738.527c-.447.32-1.06.269-1.45-.12l-.773-.774a1.125 1.125 0 01-.12-1.45l.527-.737c.25-.35.273-.806.108-1.204-.165-.397-.505-.71-.93-.78l-.894-.15c-.542-.09-.94-.56-.94-1.109v-1.094c0-.55.398-1.02.94-1.11l.894-.149c.424-.07.765-.383.93-.78.165-.398.143-.854-.107-1.204l-.527-.738a1.125 1.125 0 01.12-1.45l.773-.773a1.125 1.125 0 011.45-.12l.737.527c.35.25.807.272 1.204.107.397-.165.71-.505.78-.929l.15-.894z"/>
+          <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+        </svg>
+      </button>
+      <button class="icon-btn" id="searchToggle" aria-label="搜索" title="搜索">
+        <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+        </svg>
+      </button>
+      <button class="icon-btn" id="themeToggle" aria-label="深色模式" title="深色模式">
+        <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"/>
+        </svg>
+      </button>
+    </div>
+  </div>
+  <div class="search-bar" id="searchBar">
+    <input class="search-input" id="searchInput" type="text" placeholder="搜索文件名或备注…（Esc 关闭）">
+  </div>
+  <div class="folder-strip" id="folderStrip" hidden>
+    <div class="chip-row" id="folderChips"></div>
+  </div>
+</header>
+
+<nav class="tabs">
+  <div class="tab-list" id="tabList" role="tablist" aria-label="文件分类"></div>
+</nav>
+
+<main>
+  <!-- 在线留言板 -->
+  <section class="note-wall" id="noteWall" aria-label="留言板">
+    <div class="note-wall-head" id="noteWallToggle">
+      <span class="nw-chevron" id="noteChevron">
+        <svg fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5"/></svg>
+      </span>
+      <span style="font-size:17px">📌</span>
+      <span class="nw-title">留言板</span>
+      <span class="nw-sub" id="noteCount"></span>
+      <button class="primary-btn nw-add" id="noteAddBtn">
+        <svg fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24" style="width:15px;height:15px"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15"/></svg>
+        记一张
+      </button>
+    </div>
+    <div class="note-grid" id="noteGrid"></div>
+  </section>
+
+  <div id="categoryView">
+    <div class="grid" id="fileGrid" role="list" aria-label="文件列表"></div>
+    <div class="empty" id="emptyState" style="display:none">
+      <div class="big">🗂️</div>
+      <p>没有匹配的文件</p>
+      <p style="font-size:13px;margin-top:4px">试试切换分类或清空搜索</p>
+    </div>
+  </div>
+
+  <div class="group-view" id="groupView" hidden>
+    <div class="group-toolbar">
+      <div>
+        <h2>我的分组</h2>
+        <p class="hint">把散落的文件归到一组，跨分类管理</p>
+      </div>
+      <button class="primary-btn" id="newGroupBtn">
+        <svg fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15"/></svg>
+        新建分组
+      </button>
+    </div>
+    <div id="groupList"></div>
+    <div class="empty" id="groupEmpty" style="display:none">
+      <div class="big">🗂️</div>
+      <p>还没有分组</p>
+      <p style="font-size:13px;margin-top:4px">点右上角「新建分组」，把文件归类管理</p>
+    </div>
+  </div>
+</main>
+
+<footer class="footer">
+  <span id="footerCount"></span>
+  <button class="footer-upload" id="footerUploadBtn">
+    <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+      <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M7.5 8.25L12 3.75l4.5 4.5M12 3.75v12"/>
+    </svg>
+    上传
+  </button>
+</footer>
+
+<input type="file" id="fileInput" multiple style="display:none">
+
+<div class="toast" id="toast"></div>
+
+<!-- 留言板 · 便利贴编辑器 Modal -->
+<div class="modal-mask" id="noteEditModal">
+  <div class="modal" style="max-width:520px">
+    <header>
+      <h3 id="noteEditTitle">记一张便利贴</h3>
+      <button class="icon-btn" data-close-modal aria-label="关闭">
+        <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
+      </button>
+    </header>
+    <div class="mbody">
+      <div class="note-editor-toolbar">
+        <button type="button" data-fmt="bold" title="加粗" class="tt-fmt">B</button>
+        <button type="button" data-fmt="italic" title="斜体" class="tt-fmt" style="font-style:italic">I</button>
+        <button type="button" data-fmt="underline" title="下划线" class="tt-fmt" style="text-decoration:underline">U</button>
+        <button type="button" data-fmt="strike" title="删除线" class="tt-fmt" style="text-decoration:line-through">S</button>
+        <span class="tsep"></span>
+        <button type="button" data-fmt="link" title="插入链接" class="tt-fmt">🔗</button>
+        <button type="button" data-fmt="list" title="无序列表" class="tt-fmt">≡</button>
+        <button type="button" data-fmt="bullet" title="项目符号" class="tt-fmt">•</button>
+        <span class="tsep"></span>
+        <button type="button" data-fmt="clear" title="清除格式" class="tt-fmt tbtn-wide">清除格式</button>
+      </div>
+      <div class="note-editor" id="noteEditor" contenteditable="true" data-placeholder="写点什么… 支持加粗、斜体、链接、列表等。例如：把常用网址、临时灵感、待办事项记在这里。"></div>
+      <div class="form-row" style="margin-top:12px">
+        <label>便利贴颜色</label>
+        <div class="note-colors" id="noteColors">
+          <button class="note-color active" data-color="yellow" style="background:#fef08a" title="黄色"></button>
+          <button class="note-color" data-color="pink" style="background:#fbcfe8" title="粉色"></button>
+          <button class="note-color" data-color="blue" style="background:#bfdbfe" title="蓝色"></button>
+          <button class="note-color" data-color="green" style="background:#bbf7d0" title="绿色"></button>
+          <button class="note-color" data-color="orange" style="background:#fed7aa" title="橙色"></button>
+        </div>
+      </div>
+    </div>
+    <div class="mfoot">
+      <button class="mbtn-ghost" data-close-modal>取消</button>
+      <button class="mbtn-primary" id="noteSaveBtn">保存</button>
+    </div>
+  </div>
+</div>
+
+<!-- 设置 Modal：共享文件夹 -->
+<div class="modal-mask" id="settingsModal">
+  <div class="modal">
+    <header>
+      <h3>设置 · 共享文件夹</h3>
+      <button class="icon-btn" data-close-modal aria-label="关闭">
+        <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
+      </button>
+    </header>
+    <div class="mbody">
+      <div class="folder-list-head">
+        <span style="font-size:13px;color:var(--text)">已配置的共享文件夹（真实项目即 NAS 上挂载的路径，扫描后统一在一个共享池中显示，左上角可看到全部）</span>
+      </div>
+      <div id="folderList"></div>
+      <div class="form-row" style="margin-top:10px">
+        <label for="folderInput">添加共享文件夹</label>
+        <input type="text" id="folderInput" placeholder="例如 /mnt/nas/照片 或 D:\共享文件夹">
+      </div>
+      <div style="text-align:right">
+        <button class="primary-btn" id="folderAddBtn" style="border-radius:8px">＋ 添加</button>
+      </div>
+    </div>
+    <div class="mfoot">
+      <button class="mbtn-primary" data-close-modal>完成</button>
+    </div>
+  </div>
+</div>
+
+<!-- 分组选择 Modal -->
+<div class="modal-mask" id="groupPickModal">
+  <div class="modal">
+    <header>
+      <h3 id="groupPickTitle">加入分组</h3>
+      <button class="icon-btn" data-close-modal aria-label="关闭">
+        <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
+      </button>
+    </header>
+    <div class="mbody">
+      <div class="group-pick-list" id="groupPickList"></div>
+      <div class="new-group-inline">
+        <input type="text" id="newGroupQuickInput" placeholder="新分组名称，回车创建">
+        <button class="primary-btn" id="newGroupQuickBtn" style="border-radius:8px">＋</button>
+      </div>
+    </div>
+    <div class="mfoot">
+      <button class="mbtn-ghost" data-close-modal>完成</button>
+    </div>
+  </div>
+</div>
+
+<!-- 新建/编辑分组 Modal -->
+<div class="modal-mask" id="groupEditModal">
+  <div class="modal">
+    <header>
+      <h3 id="groupEditTitle">新建分组</h3>
+      <button class="icon-btn" data-close-modal aria-label="关闭">
+        <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
+      </button>
+    </header>
+    <div class="mbody">
+      <div class="form-row">
+        <label for="groupEditName">分组名称</label>
+        <input type="text" id="groupEditName" maxlength="30" placeholder="例如：装修项目 / 客户素材">
+      </div>
+      <div class="form-row">
+        <label for="groupEditNote">分组备注</label>
+        <textarea id="groupEditNote" rows="3" maxlength="120" placeholder="这个分组是干嘛的？例如：家装相关素材，给设计师参考"></textarea>
+      </div>
+    </div>
+    <div class="mfoot" style="flex-wrap:wrap">
+      <button class="mbtn-danger" id="groupDeleteBtn" style="display:none">删除分组</button>
+      <button class="mbtn-primary" id="groupSaveBtn">保存</button>
+    </div>
+  </div>
+</div>
+
+<div class="drawer-mask" id="drawerMask"></div>
+<aside class="drawer" id="drawer" role="dialog" aria-modal="true" aria-labelledby="drawerTitle" aria-hidden="true">
+  <header>
+    <h2 id="drawerTitle">文件备注</h2>
+    <button class="icon-btn" id="drawerClose" aria-label="关闭">
+      <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/>
+      </svg>
+    </button>
+  </header>
+  <div class="file-info">
+    <div class="ficon" id="drawerIcon"></div>
+    <div style="flex:1;min-width:0">
+      <div class="fname" id="drawerName"></div>
+      <div class="fpath" id="drawerPath"></div>
+    </div>
+  </div>
+  <div class="edit-area">
+    <label for="annotationInput">备注内容
+      <kbd>Ctrl/⌘ + Enter</kbd> 保存
+    </label>
+    <textarea id="annotationInput" rows="8"
+      placeholder="为这个文件添加备注…&#10;例如：给客户用的最终版、待复盘、密码存档等"></textarea>
+    <p class="hint">备注会保存并同步到所有设备，实时共享</p>
+  </div>
+  <footer>
+    <button class="btn-close" id="drawerCancel">关闭</button>
+    <button class="btn-save" id="drawerSave">保存备注</button>
+  </footer>
+</aside>
+
+<script>
+(function () {
+  'use strict'
+
+  /* ---------- Mock data (对应真实项目中的 /api/files JSON) ---------- */
+  var DAY = 24 * 60 * 60 * 1000
+  var NOW = Date.now()
+
+  // 本地 SVG 缩略图（模拟真实项目的文件预览缩略图，不依赖外网）
+  function svgThumb (emoji, c1, c2) {
+    var svg = '<svg xmlns="http://www.w3.org/2000/svg" width="400" height="300">' +
+      '<defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1">' +
+      '<stop offset="0" stop-color="' + c1 + '"/><stop offset="1" stop-color="' + c2 + '"/></linearGradient></defs>' +
+      '<rect width="400" height="300" fill="url(#g)"/>' +
+      '<text x="200" y="165" font-size="96" text-anchor="middle" dominant-baseline="middle">' + emoji + '</text></svg>'
+    return 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg)
+  }
+
+  var FILES = [
+    { id: '1', name: '装修灵感-客厅.jpg', path: '装修/装修灵感-客厅.jpg', category: 'image', size: 2.3*1024*1024, modifiedAt: NOW-2*DAY, thumb: svgThumb('🛋️','#60a5fa','#3b82f6'), annotation: '给设计师看的参考图，喜欢这个配色' },
+    { id: '2', name: '全家福-2024春节.png', path: '照片/全家福-2024春节.png', category: 'image', size: 4.1*1024*1024, modifiedAt: NOW-30*DAY, thumb: svgThumb('👨‍👩‍👧','#f472b6','#ec4899'), annotation: '爷爷奶奶最喜欢这张' },
+    { id: '3', name: '猫咪日常-睡觉.webp', path: '宠物/猫咪日常-睡觉.webp', category: 'image', size: 1.8*1024*1024, modifiedAt: NOW-1*DAY, thumb: svgThumb('🐱','#fbbf24','#f59e0b'), annotation: '' },
+    { id: '4', name: '旅行-大理洱海.jpg', path: '旅行/大理洱海.jpg', category: 'image', size: 3.5*1024*1024, modifiedAt: NOW-60*DAY, thumb: svgThumb('🌅','#38bdf8','#0284c7'), annotation: '日落时分拍的，很美' },
+    { id: '5', name: '截图-微信聊天记录.png', path: '截图/微信聊天记录.png', category: 'image', size: 520*1024, modifiedAt: NOW-3*DAY, thumb: svgThumb('💬','#4ade80','#22c55e'), annotation: '重要信息已备份' },
+    { id: '6', name: '设计稿-首页banner.fig.png', path: '工作/设计稿-首页banner.fig.png', category: 'image', size: 8.2*1024*1024, modifiedAt: NOW-5*DAY, thumb: svgThumb('🎨','#a78bfa','#8b5cf6'), annotation: '已确认版本，可上线' },
+    { id: '7', name: '证件照-蓝底.jpg', path: '证件/证件照-蓝底.jpg', category: 'image', size: 380*1024, modifiedAt: NOW-120*DAY, thumb: svgThumb('📇','#93c5fd','#64748b'), annotation: '最新版，有效期至2026年' },
+    { id: '8', name: '手绘草图-Logo设计.png', path: '设计/手绘草图-Logo设计.png', category: 'image', size: 1.2*1024*1024, modifiedAt: NOW-10*DAY, thumb: svgThumb('✏️','#fca5a5','#ef4444'), annotation: '初稿，后续矢量化' },
+    { id: '9', name: '宝宝第一次走路.mp4', path: '视频/宝宝第一次走路.mp4', category: 'video', size: 156*1024*1024, modifiedAt: NOW-7*DAY, thumb: svgThumb('👶','#fda4af','#fb7185'), annotation: '发给爷爷奶奶看的' },
+    { id: '10', name: '年会表演-完整版.mov', path: '视频/年会表演-完整版.mov', category: 'video', size: 2.1*1024*1024*1024, modifiedAt: NOW-45*DAY, thumb: svgThumb('🎉','#fcd34d','#f59e0b'), annotation: '公司年会节目，全员必看' },
+    { id: '11', name: '做菜教程-红烧肉.mp4', path: '教程/做菜教程-红烧肉.mp4', category: 'video', size: 340*1024*1024, modifiedAt: NOW-15*DAY, thumb: svgThumb('🍖','#fdba74','#f97316'), annotation: '奶奶亲传秘方' },
+    { id: '12', name: '旅行Vlog-云南行.webm', path: 'Vlog/云南行.webm', category: 'video', size: 890*1024*1024, modifiedAt: NOW-90*DAY, thumb: svgThumb('🏔️','#6ee7b7','#10b981'), annotation: '剪辑了一半，还差配乐' },
+    { id: '13', name: '装修合同-最终版.pdf', path: '装修/装修合同-最终版.pdf', category: 'document', size: 1.2*1024*1024, modifiedAt: NOW-3*DAY, thumb: '', annotation: '已盖章生效，务必保存好' },
+    { id: '14', name: '2024年终总结.docx', path: '工作/2024年终总结.docx', category: 'document', size: 890*1024, modifiedAt: NOW-20*DAY, thumb: '', annotation: '已提交领导审批' },
+    { id: '15', name: '家庭月度账单.xlsx', path: '财务/家庭月度账单.xlsx', category: 'document', size: 156*1024, modifiedAt: NOW-2*DAY, thumb: '', annotation: '1月支出超预算，需复盘' },
+    { id: '16', name: '产品需求文档-v2.3.md', path: '工作/产品需求文档-v2.3.md', category: 'document', size: 45*1024, modifiedAt: NOW-1*DAY, thumb: '', annotation: '新增了导出功能需求' },
+    { id: '17', name: '阅读笔记-原子习惯.txt', path: '学习/阅读笔记-原子习惯.txt', category: 'document', size: 12*1024, modifiedAt: NOW-40*DAY, thumb: '', annotation: '核心：微习惯，复利效应' },
+    { id: '18', name: '房屋租赁合同.pdf', path: '法律/房屋租赁合同.pdf', category: 'document', size: 2.1*1024*1024, modifiedAt: NOW-200*DAY, thumb: '', annotation: '电子版备份，纸质版在抽屉' },
+    { id: '19', name: 'lan-share-main.go', path: '项目/lan-share/main.go', category: 'code', size: 8.5*1024, modifiedAt: NOW-1*DAY, thumb: '', annotation: '入口文件，路由注册在这' },
+    { id: '20', name: 'file-scan.ts', path: '项目/lan-share/file-scan.ts', category: 'code', size: 12*1024, modifiedAt: NOW-2*DAY, thumb: '', annotation: '增量扫描逻辑，用fsnotify' },
+    { id: '21', name: 'CategoryView.vue', path: '项目/lan-share-frontend/src/views/CategoryView.vue', category: 'code', size: 6.2*1024, modifiedAt: NOW-3*DAY, thumb: '', annotation: '主视图组件' },
+    { id: '22', name: 'api-client.ts', path: '项目/lan-share-frontend/src/api/client.ts', category: 'code', size: 3.1*1024, modifiedAt: NOW-5*DAY, thumb: '', annotation: 'axios 封装，含拦截器' },
+    { id: '23', name: 'docker-compose.yml', path: '项目/lan-share/docker-compose.yml', category: 'code', size: 1.2*1024, modifiedAt: NOW-10*DAY, thumb: '', annotation: '生产环境编排，含健康检查' },
+    { id: '24', name: 'README.md', path: '项目/lan-share/README.md', category: 'code', size: 4.8*1024, modifiedAt: NOW-7*DAY, thumb: '', annotation: '项目文档，部署说明齐全' },
+    { id: '25', name: '照片备份-2024全年.zip', path: '备份/照片备份-2024全年.zip', category: 'archive', size: 4.2*1024*1024*1024, modifiedAt: NOW-5*DAY, thumb: '', annotation: '全年原图备份，约1.2万张' },
+    { id: '26', name: '项目源码-导出.rar', path: '备份/项目源码-导出.rar', category: 'archive', size: 520*1024*1024, modifiedAt: NOW-30*DAY, thumb: '', annotation: '不含node_modules，仅源码' },
+    { id: '27', name: '数据库备份-202412.sql.gz', path: '备份/数据库备份-202412.sql.gz', category: 'archive', size: 85*1024*1024, modifiedAt: NOW-1*DAY, thumb: '', annotation: '每日自动备份，保留30天' },
+    { id: '28', name: '设计素材包.7z', path: '设计/设计素材包.7z', category: 'archive', size: 1.8*1024*1024*1024, modifiedAt: NOW-15*DAY, thumb: '', annotation: '含字体、图标、模板' },
+    { id: '29', name: '字体包-思源黑体.ttf', path: '字体/思源黑体.ttf', category: 'other', size: 12*1024*1024, modifiedAt: NOW-60*DAY, thumb: '', annotation: '商用免费，全字重' },
+    { id: '30', name: '路由器固件.bin', path: '固件/路由器固件.bin', category: 'app', size: 16*1024*1024, modifiedAt: NOW-100*DAY, thumb: '', annotation: 'OpenWrt 23.05 稳定版' },
+    { id: '31', name: '未知文件.xyz', path: '临时/未知文件.xyz', category: 'other', size: 1024, modifiedAt: NOW-1*DAY, thumb: '', annotation: '下载时后缀丢失，待确认' },
+    { id: '32', name: '微信安装包-Windows64位.exe', path: '软件/微信安装包-Windows64位.exe', category: 'app', size: 128*1024*1024, modifiedAt: NOW-3*DAY, thumb: '', annotation: '官方最新版，安装到电脑' },
+    { id: '33', name: '网易云音乐-安卓.apk', path: '软件/网易云音乐-安卓.apk', category: 'app', size: 89*1024*1024, modifiedAt: NOW-6*DAY, thumb: '', annotation: '手机装机必备' },
+    { id: '34', name: 'Photoshop-苹果macOS.dmg', path: '软件/Photoshop-苹果macOS.dmg', category: 'app', size: 2.4*1024*1024*1024, modifiedAt: NOW-20*DAY, thumb: '', annotation: '' },
+    { id: '35', name: '微信安装包-Linux(AppImage).AppImage', path: '软件/微信安装包-Linux.AppImage', category: 'app', size: 210*1024*1024, modifiedAt: NOW-4*DAY, thumb: '', annotation: '' },
+    { id: '36', name: '手机银行-苹果iOS.ipa', path: '软件/手机银行-苹果iOS.ipa', category: 'app', size: 45*1024*1024, modifiedAt: NOW-11*DAY, thumb: '', annotation: '测试版，未签名需签名安装' }
+  ]
+
+  var CATEGORIES = [
+    { key: 'image', label: '图片', icon: '🖼️' },
+    { key: 'video', label: '视频', icon: '🎬' },
+    { key: 'document', label: '文档', icon: '📄' },
+    { key: 'code', label: '代码', icon: '💻' },
+    { key: 'archive', label: '压缩包', icon: '📦' },
+    { key: 'app', label: '软件', icon: '💿' },
+    { key: 'other', label: '其他', icon: '📎' }
+  ]
+
+  // 扩展名 → 分类 / 图标
+  var EXT_CATEGORY = {
+    image: ['jpg','jpeg','png','gif','webp','bmp','svg','heic'],
+    video: ['mp4','mov','avi','mkv','flv','wmv','m4v','webm'],
+    document: ['pdf','doc','docx','xls','xlsx','ppt','pptx','txt','md','rtf'],
+    code: ['js','ts','vue','py','java','cpp','c','go','rs','html','css','json','xml','yaml','yml','sh','sql'],
+    archive: ['zip','rar','7z','tar','gz','bz2','xz'],
+    app: [
+      // Windows
+      'exe','msi','msix','appx','bat','cmd','com','scr','ps1','dll','ocx','cpl',
+      // Linux
+      'deb','rpm','appimage','run','flatpak','flatpakref','snap','elf',
+      // macOS
+      'app','dmg','pkg',
+      // Android
+      'apk','aab','xapk',
+      // iOS
+      'ipa',
+      // 通用可执行 / 安装包
+      'jar','bin'
+    ]
+  }
+  function getCategoryByExt (name) {
+    var ext = (name.split('.').pop() || '').toLowerCase()
+    for (var k in EXT_CATEGORY) {
+      if (EXT_CATEGORY[k].indexOf(ext) !== -1) return k
+    }
+    return 'other'
+  }
+
+  var CAT_LABEL = {}
+  CATEGORIES.forEach(function (c) { CAT_LABEL[c.key] = c.label })
+
+  /* 状态 */
+  var state = {
+    files: FILES.map(function (f) { return Object.assign({}, f) }),  // fallback 用 demo mock
+    groups: [],
+    folders: [],
+    current: 'all',
+    view: 'category',
+    query: '',
+    selected: null,
+    collapsed: {},
+    notes: [],
+    notesCollapsed: false,
+    demoMode: true  // 真实后端连上后切换为 false
+  }
+
+  /* ---------- localStorage 持久化 ---------- */
+  var LS_ANNO = 'lan_share_annotations'
+  var LS_GROUPS = 'lan_share_groups'
+  var LS_FOLDERS = 'lan_share_folders'
+  var LS_ORDER = 'lan_share_file_order'
+  var LS_GROUP_ORDER = 'lan_share_group_order'
+  var LS_NOTES = 'lan_share_notes'
+  var LS_NOTES_COLLAPSED = 'lan_share_notes_collapsed'
+  try {
+    var savedAnno = localStorage.getItem(LS_ANNO)
+    if (savedAnno) {
+      var map = JSON.parse(savedAnno)
+      state.files.forEach(function (f) { if (map[f.id] !== undefined) f.annotation = map[f.id] })
+    }
+    var savedGroups = localStorage.getItem(LS_GROUPS)
+    if (savedGroups) {
+      state.groups = JSON.parse(savedGroups)
+    } else {
+      // 第一次使用，预置两个分组示例
+      state.groups = [
+        { id: 'g1', name: '装修项目', note: '家装相关素材，给设计师参考', files: ['1', '13', '3'] },
+        { id: 'g2', name: '工作交付', note: '正式交付客户 / 领导的文件', files: ['6', '14', '15', '24'] }
+      ]
+      saveGroups()
+    }
+    var savedFolders = localStorage.getItem(LS_FOLDERS)
+    if (savedFolders) state.folders = JSON.parse(savedFolders)
+    var savedOrder = localStorage.getItem(LS_ORDER)
+    if (savedOrder) {
+      var orderIds = JSON.parse(savedOrder)
+      if (Array.isArray(orderIds) && orderIds.length) {
+        var pos = {}
+        orderIds.forEach(function (id, i) { pos[id] = i })
+        state.files.sort(function (a, b) {
+          var ia = pos[a.id], ib = pos[b.id]
+          if (ia === undefined && ib === undefined) return 0
+          if (ia === undefined) return 1
+          if (ib === undefined) return -1
+          return ia - ib
+        })
+      }
+    }
+    var savedGroupOrder = localStorage.getItem(LS_GROUP_ORDER)
+    if (savedGroupOrder) {
+      var gord = JSON.parse(savedGroupOrder)
+      if (Array.isArray(gord) && gord.length) {
+        var gpos = {}
+        gord.forEach(function (id, i) { gpos[id] = i })
+        state.groups.sort(function (a, b) {
+          var ia = gpos[a.id], ib = gpos[b.id]
+          if (ia === undefined && ib === undefined) return 0
+          if (ia === undefined) return 1
+          if (ib === undefined) return -1
+          return ia - ib
+        })
+      }
+    }
+    var savedNotes = localStorage.getItem(LS_NOTES)
+    if (savedNotes) {
+      var ns = JSON.parse(savedNotes)
+      if (Array.isArray(ns)) state.notes = ns
+    }
+    if (localStorage.getItem(LS_NOTES_COLLAPSED) === '1') state.notesCollapsed = true
+  } catch (e) { /* ignore */ }
+
+  function persistAnnotations () {
+    try {
+      var map = {}
+      state.files.forEach(function (f) { map[f.id] = f.annotation })
+      localStorage.setItem(LS_ANNO, JSON.stringify(map))
+    } catch (e) { /* ignore */ }
+  }
+  function saveGroups () {
+    if (state.demoMode) {
+      try { localStorage.setItem(LS_GROUPS, JSON.stringify(state.groups)) } catch (e) { /* ignore */ }
+      return
+    }
+    // 全量 diff 同步到后端：新增 POST、变化 PATCH、缺失 DELETE
+    fetch('/api/groups').then(function (r) { return r.json() }).then(async function (d) {
+      var serverGroups = (d && d.groups) || []
+      // 1) 删除后端有、本地无的分组
+      for (var i = 0; i < serverGroups.length; i++) {
+        var sg = serverGroups[i]
+        if (!state.groups.some(function (g) { return g.id === sg.id })) {
+          await fetch('/api/groups/' + sg.id, { method: 'DELETE' })
+        }
+      }
+      // 2) 新增 / 更新
+      for (var j = 0; j < state.groups.length; j++) {
+        var g = state.groups[j]
+        var existing = serverGroups.filter(function (x) { return x.id === g.id })[0]
+        if (existing) {
+          await fetch('/api/groups/' + g.id, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name: g.name, note: g.note, files: g.files })
+          })
+        } else {
+          var r2 = await fetch('/api/groups', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name: g.name, note: g.note })
+          })
+          var nd = await r2.json()
+          if (nd.ok && nd.id) {
+            g.id = nd.id  // 用后端真实 id 替换本地临时 id
+            await fetch('/api/groups/' + g.id, {
+              method: 'PATCH',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ name: g.name, note: g.note, files: g.files })
+            })
+          }
+        }
+      }
+    }).catch(function () {})
+  }
+  function saveFolders (cb) {
+    if (state.demoMode) {
+      try { localStorage.setItem(LS_FOLDERS, JSON.stringify(state.folders)) } catch (e) { /* ignore */ }
+      if (cb) cb()
+      return
+    }
+    fetch('/api/config', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ shareFolders: state.folders })
+    }).then(function (r) { return r.json() }).then(function (d) {
+      if (d.ok) { showToast('配置已保存'); if (cb) cb() }
+      else { showToast('保存失败'); state.folders = state.folders.slice(0, -1); if (cb) cb() }
+    }).catch(function () { showToast('保存失败，后端不可达'); if (cb) cb() })
+  }
+
+  function reloadFiles () {
+    fetch('/api/files').then(function (r) { return r.json() }).then(function (d) {
+      if (d && d.files) {
+        state.files = d.files.map(function (f) {
+          return { id: f.id, name: f.name, path: f.relPath, category: f.category,
+            size: f.size, modifiedAt: f.mtime, thumb: '', annotation: f.annotation || '' }
+        })
+        state.folders = d.folders ? d.folders.map(function (f) { return f.path }) : state.folders
+        renderFolderStrip()
+        renderViews()
+      }
+    }).catch(function () {})
+  }
+  function saveFileOrder () {
+    try { localStorage.setItem(LS_ORDER, JSON.stringify(state.files.map(function (f) { return f.id }))) } catch (e) { /* ignore */ }
+  }
+  function saveGroupOrder () {
+    try { localStorage.setItem(LS_GROUP_ORDER, JSON.stringify(state.groups.map(function (g) { return g.id }))) } catch (e) { /* ignore */ }
+  }
+  function groupsOfFile (fileId) {
+    return state.groups.filter(function (g) { return g.files.indexOf(fileId) !== -1 })
+  }
+
+  /* ---------- utils ---------- */
+  function formatSize (bytes) {
+    if (bytes < 1024) return bytes + ' B'
+    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB'
+    if (bytes < 1024 * 1024 * 1024) return (bytes / 1024 / 1024).toFixed(1) + ' MB'
+    return (bytes / 1024 / 1024 / 1024).toFixed(1) + ' GB'
+  }
+
+  function formatTime (ts) {
+    var diff = Date.now() - ts
+    if (diff < 60 * 1000) return '刚刚'
+    if (diff < 60 * 60 * 1000) return Math.floor(diff / 60000) + ' 分钟前'
+    if (diff < 24 * 60 * 60 * 1000) return Math.floor(diff / 3600000) + ' 小时前'
+    if (diff < 7 * 24 * 60 * 60 * 1000) return Math.floor(diff / 86400000) + ' 天前'
+    var d = new Date(ts)
+    return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0')
+  }
+
+  function countByCategory () {
+    var counts = {}
+    state.files.forEach(function (f) { counts[f.category] = (counts[f.category] || 0) + 1 })
+    return counts
+  }
+
+  function filteredFiles () {
+    var q = state.query.trim().toLowerCase()
+    return state.files.filter(function (f) {
+      if (state.current !== 'all' && f.category !== state.current) return false
+      if (!q) return true
+      return f.name.toLowerCase().indexOf(q) !== -1 ||
+             f.annotation.toLowerCase().indexOf(q) !== -1
+    })
+  }
+
+  function iconFor (cat) {
+    return { image: '🖼️', video: '🎬', document: '📄', code: '💻', archive: '📦', app: '💿', other: '📎' }[cat] || '📎'
+  }
+
+  /* ---------- render ---------- */
+  var tabList = document.getElementById('tabList')
+  var grid = document.getElementById('fileGrid')
+  var empty = document.getElementById('emptyState')
+  var totalCount = document.getElementById('totalCount')
+  var footerCount = document.getElementById('footerCount')
+  var categoryView = document.getElementById('categoryView')
+  var groupView = document.getElementById('groupView')
+  var groupEmpty = document.getElementById('groupEmpty')
+
+  function renderTabs () {
+    var counts = countByCategory()
+    tabList.innerHTML = ''
+
+    // 全部 tab
+    var allBtn = document.createElement('button')
+    var allActive = state.view === 'category' && state.current === 'all'
+    allBtn.className = 'tab' + (allActive ? ' active' : '')
+    allBtn.setAttribute('role', 'tab')
+    allBtn.setAttribute('aria-selected', allActive ? 'true' : 'false')
+    allBtn.innerHTML = '<span>🗂️</span> <span>全部</span>' +
+      ' <span class="tab-count">' + state.files.length + '</span>'
+    allBtn.addEventListener('click', function () {
+      state.view = 'category'
+      state.current = 'all'
+      renderViews()
+    })
+    tabList.appendChild(allBtn)
+
+    CATEGORIES.forEach(function (c) {
+      var btn = document.createElement('button')
+      btn.className = 'tab' + (state.view === 'category' && c.key === state.current ? ' active' : '')
+      btn.setAttribute('role', 'tab')
+      btn.setAttribute('aria-selected', state.view === 'category' && c.key === state.current ? 'true' : 'false')
+      btn.innerHTML = '<span>' + c.icon + '</span> <span>' + c.label + '</span>' +
+        ' <span class="tab-count">' + (counts[c.key] || 0) + '</span>'
+      btn.addEventListener('click', function () {
+        state.view = 'category'
+        state.current = c.key
+        renderViews()
+      })
+      tabList.appendChild(btn)
+    })
+
+    // 分组 tab
+    var sep = document.createElement('span')
+    sep.className = 'tab-sep'
+    tabList.appendChild(sep)
+    var gBtn = document.createElement('button')
+    gBtn.className = 'tab' + (state.view === 'group' ? ' active' : '')
+    gBtn.setAttribute('role', 'tab')
+    gBtn.setAttribute('aria-selected', state.view === 'group' ? 'true' : 'false')
+    gBtn.innerHTML = '<span>🧷</span> <span>分组</span>' +
+      ' <span class="tab-count">' + state.groups.length + '</span>'
+    gBtn.addEventListener('click', function () {
+      state.view = 'group'
+      renderViews()
+    })
+    tabList.appendChild(gBtn)
+
+    var groupTb = document.getElementById('groupToggleBtn')
+    groupTb.classList.toggle('highlight', state.view === 'group')
+  }
+
+  function renderViews () {
+    totalCount.textContent = '共 ' + state.files.length + ' 个文件'
+    renderTabs()
+    if (state.view === 'group') {
+      categoryView.hidden = true
+      groupView.hidden = false
+      renderGroups()
+    } else {
+      groupView.hidden = true
+      categoryView.hidden = false
+      renderGrid()
+    }
+  }
+
+  /* ---------- 卡片 ---------- */
+  function playSvg () {
+    return '<svg fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>'
+  }
+  function annotateSvg () {
+    return '<svg fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>'
+  }
+  function eyeSvg () {
+    return '<svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>'
+  }
+  function downloadSvg () {
+    return '<svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>'
+  }
+  function groupSvg () {
+    return '<svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M17 14v6m-3-3h6M6 10h2a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v2a2 2 0 002 2zm10 0h2a2 2 0 002-2V6a2 2 0 00-2-2h-2a2 2 0 00-2 2v2a2 2 0 002 2zM6 20h2a2 2 0 002-2v-2a2 2 0 00-2-2H6a2 2 0 00-2 2v2a2 2 0 002 2z"/></svg>'
+  }
+
+  function fileUrl (file) {
+    return '/files/' + file.id.split('/').map(encodeURIComponent).join('/')
+  }
+
+  function openPreview (file) {
+    window.open(fileUrl(file), '_blank')
+  }
+
+  function buildCard (file) {
+    var card = document.createElement('article')
+    card.className = 'card cat-' + file.category
+    card.setAttribute('role', 'button')
+    card.setAttribute('tabindex', '0')
+    card.setAttribute('draggable', 'true')
+    card.setAttribute('data-id', file.id)
+    card.setAttribute('aria-label', file.name + '，' + formatSize(file.size) + '，' + formatTime(file.modifiedAt))
+
+    var isImage = file.category === 'image'
+    var isVideo = file.category === 'video'
+    var hasThumb = file.thumb && (isImage || isVideo)
+    var thumbHtml
+    if (isImage) {
+      var img = '<img src="' + fileUrl(file) + '" alt="' + file.name + '" loading="lazy" onerror="this.parentNode.classList.add(\'plain\'); this.parentNode.innerHTML=' +
+        '\'<div class=&quot;icon&quot;>&#128444;</div><span class=&quot;ext-label&quot;>' + (file.name.split('.').pop() || 'file') + '</span>\';">'
+      thumbHtml = '<div class="thumb">' + img +
+        '<span class="cat-badge">' + CAT_LABEL[file.category] + '</span></div>'
+    } else if (hasThumb) {
+      var img2 = '<img src="' + file.thumb + '" alt="' + file.name + '" loading="lazy">'
+      var overlay = isVideo
+        ? '<div class="play-overlay">' + playSvg() + '</div>'
+        : ''
+      thumbHtml = '<div class="thumb">' + img2 + overlay +
+        '<span class="cat-badge">' + CAT_LABEL[file.category] + '</span></div>'
+    } else {
+      thumbHtml = '<div class="thumb plain">' +
+        '<div class="icon">' + iconFor(file.category) + '</div>' +
+        '<span class="ext-label">' + (file.name.split('.').pop() || 'file') + '</span>' +
+        '<span class="cat-badge">' + CAT_LABEL[file.category] + '</span></div>'
+    }
+
+    var groupsHtml = ''
+    var myGroups = groupsOfFile(file.id)
+    if (myGroups.length) {
+      groupsHtml = '<div style="display:flex;gap:4px;margin-top:6px;flex-wrap:wrap">' +
+        myGroups.map(function (g) {
+          return '<span style="font-size:11px;background:rgba(37,99,235,.1);color:var(--accent);padding:1px 8px;border-radius:999px">🧷 ' + g.name + '</span>'
+        }).join('') +
+        '</div>'
+    }
+
+    var markHtml = ''
+    if (file.annotation) {
+      markHtml = '<span class="annotated-mark">' + annotateSvg() + '备注</span>'
+    }
+
+    var noteHtml = ''
+    if (file.annotation) {
+      noteHtml = '<div class="card-note">' + file.annotation + '</div>'
+    }
+
+    var hoverHtml =
+      '<div class="hover-actions">' +
+        '<button class="mini-btn" data-act="group" aria-label="分组">' + groupSvg() + '</button>' +
+        '<button class="mini-btn" data-act="preview" aria-label="预览">' + eyeSvg() + '</button>' +
+        '<button class="mini-btn" data-act="download" aria-label="下载">' + downloadSvg() + '</button>' +
+      '</div>'
+
+    card.innerHTML = thumbHtml + markHtml + hoverHtml +
+      '<div class="card-body">' +
+        '<div class="card-name">' + file.name + '</div>' +
+        '<div class="card-meta"><span>' + formatSize(file.size) + '</span><span>' + formatTime(file.modifiedAt) + '</span></div>' +
+        noteHtml +
+        groupsHtml +
+      '</div>'
+
+    card.addEventListener('click', function (e) {
+      var actBtn = e.target.closest('[data-act]')
+      if (actBtn) {
+        e.stopPropagation()
+        var act = actBtn.getAttribute('data-act')
+        if (act === 'group') openGroupPick(file)
+        else if (act === 'preview') openPreview(file)
+        else {
+          var a = document.createElement('a')
+          a.href = fileUrl(file) + '?download=1'
+          a.setAttribute('download', file.name)
+          document.body.appendChild(a)
+          a.click()
+          a.remove()
+        }
+        return
+      }
+      openDrawer(file)
+    })
+    card.addEventListener('keydown', function (e) {
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openDrawer(file) }
+    })
+    return card
+  }
+
+  function renderGrid () {
+    var files = filteredFiles()
+    grid.innerHTML = ''
+    if (files.length === 0) {
+      grid.style.display = 'none'
+      empty.style.display = 'block'
+    } else {
+      grid.style.display = 'grid'
+      empty.style.display = 'none'
+      files.forEach(function (f) { grid.appendChild(buildCard(f)) })
+    }
+    footerCount.textContent = files.length + ' 个文件'
+  }
+
+  /* ---------- 拖拽排序 ---------- */
+  var dragId = null
+  function reorderList (arr, dragIdx, targetIdx) {
+    var moved = arr.splice(dragIdx, 1)[0]
+    arr.splice(targetIdx, 0, moved)
+  }
+  function setupFileDnD () {
+    grid.addEventListener('dragstart', function (e) {
+      var card = e.target.closest('.card')
+      if (!card) return
+      dragId = card.getAttribute('data-id')
+      card.classList.add('dragging')
+      try { e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', dragId) } catch (err) {}
+    })
+    grid.addEventListener('dragover', function (e) {
+      e.preventDefault()
+      var card = e.target.closest('.card')
+      if (card) {
+        var over = grid.querySelectorAll('.card.drop-over')
+        for (var i = 0; i < over.length; i++) over[i].classList.remove('drop-over')
+        card.classList.add('drop-over')
+      }
+    })
+    grid.addEventListener('dragleave', function (e) {
+      var card = e.target.closest('.card')
+      if (card) card.classList.remove('drop-over')
+    })
+    grid.addEventListener('drop', function (e) {
+      e.preventDefault()
+      grid.querySelectorAll('.card.drop-over').forEach(markRemoveCardClass)
+      var target = e.target.closest('.card')
+      if (dragId && target) {
+        var targetId = target.getAttribute('data-id')
+        var idxT = state.files.findIndex(function (f) { return f.id === targetId })
+        var idxD = state.files.findIndex(function (f) { return f.id === dragId })
+        if (idxT !== -1 && idxD !== -1 && idxD !== idxT) {
+          // 在数组的真实顺序里重排：目标在当前视图中的位置保持
+          var vis = filteredFiles()
+          var tvis = vis.findIndex(function (f) { return f.id === targetId })
+          var dvis = vis.findIndex(function (f) { return f.id === dragId })
+          if (tvis !== -1) {
+            if (dvis < tvis) {
+              // 被拖文件原本在目标之前，保持就位（不做跨分类顺序调整）
+              reorderList(state.files, idxD, idxT)
+            } else {
+              reorderList(state.files, idxD, idxT)
+            }
+          }
+          saveFileOrder()
+          renderViews()
+        }
+      }
+      dragId = null
+    })
+    grid.addEventListener('dragend', function () {
+      grid.querySelectorAll('.card').forEach(markRemoveCardClass)
+      dragId = null
+    })
+  }
+  function markRemoveCardClass (el) {
+    el.classList.remove('drag-over-placeholder')
+    el.classList.remove('drop-over')
+    el.classList.remove('dragging')
+  }
+  function setupGroupDnD () {
+    var list = document.getElementById('groupList')
+    list.addEventListener('dragstart', function (e) {
+      if (e.target.closest('.card')) return
+      var gc = e.target.closest('.group-card')
+      if (!gc) return
+      dragId = gc.getAttribute('data-gid')
+      gc.classList.add('dragging')
+      try { e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', dragId) } catch (err) {}
+    })
+    list.addEventListener('dragover', function (e) {
+      e.preventDefault()
+      var gc = e.target.closest('.group-card')
+      if (gc) {
+        var over = list.querySelectorAll('.group-card.drop-over')
+        for (var i = 0; i < over.length; i++) over[i].classList.remove('drop-over')
+        gc.classList.add('drop-over')
+      }
+    })
+    list.addEventListener('dragleave', function (e) {
+      var gc = e.target.closest('.group-card')
+      if (gc) gc.classList.remove('drop-over')
+    })
+    list.addEventListener('drop', function (e) {
+      e.preventDefault()
+      if (!dragId || e.target.closest('.card')) { dragId = null; return }
+      list.querySelectorAll('.group-card.drop-over').forEach(markRemoveCardClass)
+      var target = e.target.closest('.group-card')
+      if (dragId && target) {
+        var targetId = target.getAttribute('data-gid')
+        var idxT = state.groups.findIndex(function (g) { return g.id === targetId })
+        var idxD = state.groups.findIndex(function (g) { return g.id === dragId })
+        if (idxT !== -1 && idxD !== -1 && idxD !== idxT) {
+          reorderList(state.groups, idxD, idxT)
+          saveGroupOrder()
+          renderViews()
+        }
+      }
+      dragId = null
+    })
+    list.addEventListener('dragend', function () {
+      list.querySelectorAll('.group-card').forEach(markRemoveCardClass)
+      dragId = null
+    })
+  }
+
+  /* ---------- 分组视图 ---------- */
+  function chevronSvg () {
+    return '<svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/></svg>'
+  }
+  function editSvg () {
+    return '<svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125"/></svg>'
+  }
+
+  function renderGroups () {
+    var list = document.getElementById('groupList')
+    list.innerHTML = ''
+    if (state.groups.length === 0) {
+      groupEmpty.style.display = 'block'
+      return
+    }
+    groupEmpty.style.display = 'none'
+
+    state.groups.forEach(function (g) {
+      var card = document.createElement('article')
+      card.className = 'group-card' + (state.collapsed[g.id] ? '' : ' open')
+      card.setAttribute('draggable', 'true')
+      card.setAttribute('data-gid', g.id)
+
+      var head = document.createElement('div')
+      head.className = 'group-head'
+      head.innerHTML =
+        '<span class="group-chevron">' + chevronSvg() + '</span>' +
+        '<span class="group-name">' + g.name + '</span>' +
+        '<span class="group-note">' + (g.note || '') + '</span>' +
+        '<span class="group-count">' + g.files.length + ' 个文件</span>' +
+        '<span class="group-ops">' +
+          '<button class="icon-btn" data-gop="edit" aria-label="编辑分组">' + editSvg() + '</button>' +
+          '<button class="icon-btn" data-gop="del" aria-label="删除分组">' +
+            '<svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M7 7l.85 12.1A2 2 0 009.84 21h4.32a2 2 0 001.99-1.9L17 7M5 7h14m-9-3h4a1 1 0 011 1v1H8V5a1 1 0 011-1z"/></svg>' +
+          '</button>' +
+        '</span>'
+
+      var body = document.createElement('div')
+      body.className = 'group-body'
+      if (g.files.length === 0) {
+        body.innerHTML = '<div class="group-empty">这个分组还没有文件</div>'
+      } else {
+        var inner = document.createElement('div')
+        inner.className = 'grid'
+        inner.style.cssText = 'grid-template-columns:repeat(auto-fill,minmax(160px,1fr))'
+        g.files.forEach(function (fid) {
+          var f = state.files.find(function (x) { return x.id === fid })
+          if (f) inner.appendChild(buildCard(f))
+        })
+        body.appendChild(inner)
+      }
+
+      head.addEventListener('click', function (e) {
+        if (e.target.closest('[data-gop]')) {
+          var op = e.target.closest('[data-gop]').getAttribute('data-gop')
+          if (op === 'edit') openGroupEdit(g)
+          else if (op === 'del') {
+            if (confirm('删除分组「' + g.name + '」？分组内文件不会被删除，只是离开分组。')) {
+              state.groups = state.groups.filter(function (x) { return x.id !== g.id })
+              saveGroups(); renderViews()
+            }
+          }
+          return
+        }
+        if (state.collapsed[g.id]) delete state.collapsed[g.id]
+        else state.collapsed[g.id] = true
+        card.classList.toggle('open', !state.collapsed[g.id])
+      })
+
+      card.appendChild(head)
+      card.appendChild(body)
+      list.appendChild(card)
+    })
+  }
+
+  /* ---------- 分组 Modal ---------- */
+  var groupPickModal = document.getElementById('groupPickModal')
+  var groupEditModal = document.getElementById('groupEditModal')
+  var noteEditModal = document.getElementById('noteEditModal')
+  var pickTarget = null
+
+  function openModal (modal) { modal.classList.add('open') }
+  function closeAllModals () {
+    groupPickModal.classList.remove('open')
+    groupEditModal.classList.remove('open')
+    noteEditModal.classList.remove('open')
+  }
+  document.querySelectorAll('[data-close-modal]').forEach(function (b) {
+    b.addEventListener('click', closeAllModals)
+  })
+  ;[groupPickModal, groupEditModal, noteEditModal].forEach(function (m) {
+    m.addEventListener('click', function (e) { if (e.target === m) closeAllModals() })
+  })
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape') {
+      if (groupPickModal.classList.contains('open') ||
+          groupEditModal.classList.contains('open') ||
+          noteEditModal.classList.contains('open')) closeAllModals()
+      else if (drawer.classList.contains('open')) closeDrawer()
+    }
+  })
+
+  function groupPickRow (g, file) {
+    var row = document.createElement('div')
+    var inGroup = g.files.indexOf(file.id) !== -1
+    row.className = 'group-pick' + (inGroup ? ' in' : '')
+    row.innerHTML =
+      '<span class="g-icon">🧷</span>' +
+      '<span class="g-meta"><span class="t">' + g.name + '</span>' +
+      '<span class="d">' + (g.note || '无备注') + '</span></span>' +
+      '<span class="check">✓</span>'
+    row.addEventListener('click', function () {
+      var idx = g.files.indexOf(file.id)
+      if (idx === -1) g.files.push(file.id)
+      else g.files.splice(idx, 1)
+      saveGroups()
+      row.classList.toggle('in', idx === -1)
+      if (state.view === 'category') renderGrid()
+      else renderGroups()
+      if (state.selected && state.selected.id === file.id) renderDrawerFile(file)
+    })
+    return row
+  }
+
+  function openGroupPick (file) {
+    pickTarget = file
+    document.getElementById('groupPickTitle').textContent = '加入分组：' + file.name
+    var list = document.getElementById('groupPickList')
+    list.innerHTML = ''
+    if (state.groups.length === 0) {
+      list.innerHTML = '<div class="group-empty">还没有分组，先建一个吧</div>'
+    } else {
+      state.groups.forEach(function (g) { list.appendChild(groupPickRow(g, file)) })
+    }
+    openModal(groupPickModal)
+  }
+
+  function createQuickGroup () {
+    var inp = document.getElementById('newGroupQuickInput')
+    var name = inp.value.trim()
+    if (!name) return
+    if (state.demoMode) {
+      var g0 = { id: 'g' + Date.now(), name: name, note: '', files: [] }
+      state.groups.push(g0)
+      if (pickTarget) g0.files.push(pickTarget.id)
+      saveGroups()
+      inp.value = ''
+      if (state.view === 'group') renderGroups()
+      else renderGrid()
+      openGroupPick(pickTarget)
+      return
+    }
+    fetch('/api/groups', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: name, note: '' })
+    }).then(function (r) { return r.json() }).then(function (d) {
+      if (!d.ok) { showToast('创建失败'); return }
+      var g = { id: d.id, name: name, note: '', files: pickTarget ? [pickTarget.id] : [] }
+      state.groups.push(g)
+      if (pickTarget) {
+        fetch('/api/groups/' + g.id, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name: name, note: '', files: g.files })
+        })
+      }
+      inp.value = ''
+      if (state.view === 'group') renderGroups()
+      else renderGrid()
+      openGroupPick(pickTarget)
+    }).catch(function () { showToast('后端不可达') })
+  }
+  document.getElementById('newGroupQuickBtn').addEventListener('click', createQuickGroup)
+  document.getElementById('newGroupQuickInput').addEventListener('keydown', function (e) {
+    if (e.key === 'Enter') createQuickGroup()
+  })
+
+  /* 新建 / 编辑分组 */
+  var editingGroup = null
+  document.getElementById('newGroupBtn').addEventListener('click', openNewGroup)
+
+  function openNewGroup () {
+    editingGroup = null
+    document.getElementById('groupEditTitle').textContent = '新建分组'
+    document.getElementById('groupEditName').value = ''
+    document.getElementById('groupEditNote').value = ''
+    document.getElementById('groupDeleteBtn').style.display = 'none'
+    openModal(groupEditModal)
+    document.getElementById('groupEditName').focus()
+  }
+
+  function openGroupEdit (g) {
+    editingGroup = g
+    document.getElementById('groupEditTitle').textContent = '编辑分组'
+    document.getElementById('groupEditName').value = g.name
+    document.getElementById('groupEditNote').value = g.note || ''
+    document.getElementById('groupDeleteBtn').style.display = g.files.length ? 'none' : ''
+    openModal(groupEditModal)
+  }
+
+  document.getElementById('groupSaveBtn').addEventListener('click', function () {
+    var name = document.getElementById('groupEditName').value.trim()
+    var note = document.getElementById('groupEditNote').value.trim()
+    if (!name) { document.getElementById('groupEditName').focus(); return }
+    if (state.demoMode) {
+      if (editingGroup) {
+        editingGroup.name = name
+        editingGroup.note = note
+      } else {
+        state.groups.push({ id: 'g' + Date.now(), name: name, note: note, files: [] })
+      }
+      saveGroups()
+      closeAllModals()
+      renderViews()
+      return
+    }
+    if (editingGroup) {
+      editingGroup.name = name
+      editingGroup.note = note
+      fetch('/api/groups/' + editingGroup.id, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: name, note: note, files: editingGroup.files })
+      }).then(function () {
+        closeAllModals()
+        renderViews()
+      })
+    } else {
+      fetch('/api/groups', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: name, note: note })
+      }).then(function (r) { return r.json() }).then(function (d) {
+        if (d.ok) {
+          state.groups.push({ id: d.id, name: name, note: note, files: [] })
+          closeAllModals()
+          renderViews()
+        } else showToast('创建失败')
+      })
+    }
+  })
+
+  document.getElementById('groupDeleteBtn').addEventListener('click', function () {
+    if (!editingGroup) return
+    if (confirm('删除分组「' + editingGroup.name + '」？')) {
+      var id = editingGroup.id
+      state.groups = state.groups.filter(function (x) { return x.id !== id })
+      if (state.demoMode) {
+        saveGroups()
+        closeAllModals()
+        renderViews()
+        return
+      }
+      fetch('/api/groups/' + id, { method: 'DELETE' }).then(function () {
+        closeAllModals()
+        renderViews()
+      }).catch(function () { closeAllModals(); renderViews(); showToast('后端不可达') })
+    }
+  })
+
+  /* ---------- 上传 ---------- */
+  var fileInput = document.getElementById('fileInput')
+  var toastTimer = null
+  function showToast (msg) {
+    var t = document.getElementById('toast')
+    t.textContent = msg
+    t.classList.add('show')
+    clearTimeout(toastTimer)
+    toastTimer = setTimeout(function () { t.classList.remove('show') }, 2200)
+  }
+
+  function handleFiles (fileList) {
+    var arr = Array.prototype.slice.call(fileList)
+    if (state.demoMode) {
+      var addedDemo = 0
+      var uidDemo = Date.now()
+      for (var k = 0; k < arr.length; k++) {
+        var fd = arr[k]
+        var catD = getCategoryByExt(fd.name)
+        var thumbD = catD === 'image' ? URL.createObjectURL(fd) : (catD === 'video' ? svgThumb('🎬', '#fcd34d', '#f59e0b') : '')
+        var fake = {
+          id: 'u' + (uidDemo + k),
+          name: fd.name,
+          path: '上传/' + fd.name,
+          category: catD,
+          size: fd.size,
+          modifiedAt: Date.now(),
+          thumb: thumbD,
+          annotation: '',
+          uploaded: true
+        }
+        state.files.push(fake)
+        addedDemo++
+      }
+      if (addedDemo) {
+        showToast('已上传 ' + addedDemo + ' 个文件（演示模式，刷新后还原）')
+        if (state.view === 'group') renderViews()
+        else { renderTabs(); renderGrid() }
+      }
+      return
+    }
+    // 真实模式：走后端上传
+    var doneUp = 0, failUp = 0
+    var totalUp = arr.length
+    arr.forEach(function (f) {
+      fetch('/api/upload', {
+        method: 'POST',
+        headers: { 'X-File-Name': encodeURIComponent(f.name) },
+        body: f
+      }).then(function (r) { return r.json() }).then(function (d) {
+        if (d.ok) doneUp++
+        else failUp++
+        if (doneUp + failUp === totalUp) afterUpload(doneUp, failUp)
+      }).catch(function () {
+        failUp++
+        if (doneUp + failUp === totalUp) afterUpload(doneUp, failUp)
+      })
+    })
+  }
+
+  function afterUpload (okCount, failCount) {
+    if (okCount > 0) showToast('上传完成：' + okCount + ' 个成功' + (failCount > 0 ? '，' + failCount + ' 个失败' : ''))
+    else showToast('上传失败，后端不可达')
+    reloadFiles()
+  }
+
+  function triggerUpload () { fileInput.click() }
+  document.getElementById('uploadBtn').addEventListener('click', triggerUpload)
+  document.getElementById('footerUploadBtn').addEventListener('click', triggerUpload)
+  fileInput.addEventListener('change', function () {
+    handleFiles(fileInput.files)
+    fileInput.value = ''
+  })
+
+  /* ---------- annotation drawer ---------- */
+  var drawer = document.getElementById('drawer')
+  var mask = document.getElementById('drawerMask')
+  var drawerIcon = document.getElementById('drawerIcon')
+  var drawerName = document.getElementById('drawerName')
+  var drawerPath = document.getElementById('drawerPath')
+  var annotationInput = document.getElementById('annotationInput')
+
+  function openDrawer (file) {
+    state.selected = file
+    renderDrawerFile(file)
+    drawer.classList.add('open')
+    mask.classList.add('open')
+    drawer.setAttribute('aria-hidden', 'false')
+    annotationInput.focus()
+  }
+  function renderDrawerFile (file) {
+    drawerIcon.textContent = iconFor(file.category)
+    drawerName.textContent = file.name
+    drawerPath.textContent = file.path
+    annotationInput.value = file.annotation || ''
+  }
+  function closeDrawer () {
+    drawer.classList.remove('open')
+    mask.classList.remove('open')
+    drawer.setAttribute('aria-hidden', 'true')
+    state.selected = null
+  }
+
+  function saveAnnotation () {
+    if (!state.selected) return
+    var file = state.selected
+    file.annotation = annotationInput.value.trim()
+    if (state.demoMode) {
+      persistAnnotations()
+      renderGrid()
+      closeDrawer()
+      return
+    }
+    fetch('/api/meta/' + file.id.split('/').map(encodeURIComponent).join('/'), {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ annotation: file.annotation })
+    }).then(function (r) { return r.json() }).then(function () {
+      renderGrid()
+      closeDrawer()
+      showToast('备注已保存，局域网内共享可见')
+    }).catch(function () {
+      showToast('保存失败，后端不可达');
+      persistAnnotations()
+      closeDrawer()
+    })
+  }
+
+  mask.addEventListener('click', closeDrawer)
+  document.getElementById('drawerClose').addEventListener('click', closeDrawer)
+  document.getElementById('drawerCancel').addEventListener('click', closeDrawer)
+  document.getElementById('drawerSave').addEventListener('click', saveAnnotation)
+
+  annotationInput.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape') { e.stopPropagation(); closeDrawer() }
+    if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') { e.preventDefault(); saveAnnotation() }
+  })
+
+  /* ---------- search & theme ---------- */
+  var searchBar = document.getElementById('searchBar')
+  var searchInput = document.getElementById('searchInput')
+  var searchOpen = false
+  document.getElementById('searchToggle').addEventListener('click', function () {
+    searchOpen = !searchOpen
+    searchBar.classList.toggle('open', searchOpen)
+    if (searchOpen) searchInput.focus()
+  })
+  searchInput.addEventListener('input', function () {
+    state.query = searchInput.value
+    renderGrid()
+  })
+  searchInput.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape') {
+      searchOpen = false
+      searchBar.classList.remove('open')
+      searchInput.blur()
+    }
+  })
+
+  document.getElementById('themeToggle').addEventListener('click', function () {
+    var dark = document.documentElement.classList.toggle('dark')
+    try { localStorage.setItem('lan_share_theme', dark ? 'dark' : 'light') } catch (e) {}
+  })
+  try {
+    if (localStorage.getItem('lan_share_theme') === 'dark') {
+      document.documentElement.classList.add('dark')
+    }
+  } catch (e) {}
+
+  /* ---------- 设置：共享文件夹 ---------- */
+  var settingsModal = document.getElementById('settingsModal')
+  var folderList = document.getElementById('folderList')
+  var folderInput = document.getElementById('folderInput')
+  var folderStrip = document.getElementById('folderStrip')
+  var folderChips = document.getElementById('folderChips')
+
+  function renderFolderList () {
+    folderList.innerHTML = ''
+    if (!state.folders.length) {
+      folderList.innerHTML = '<div class="group-empty">还没有配置共享文件夹，添加一个即可开始浏览</div>'
+      return
+    }
+    state.folders.forEach(function (p) {
+      var row = document.createElement('div')
+      row.className = 'folder-row'
+      row.innerHTML = '<span class="folder-path">' + p + '</span>' +
+        '<button class="icon-btn" data-del-folder aria-label="移除该文件夹">' +
+          '<svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>' +
+        '</button>'
+      row.querySelector('[data-del-folder]').addEventListener('click', function () {
+        state.folders = state.folders.filter(function (x) { return x !== p })
+        saveFolders(function () {
+          renderFolderList()
+          renderFolderStrip()
+          reloadFiles()
+        })
+      })
+      folderList.appendChild(row)
+    })
+  }
+
+  function renderFolderStrip () {
+    folderChips.innerHTML = ''
+    if (!state.folders.length) { folderStrip.hidden = true; return }
+    folderStrip.hidden = false
+    state.folders.forEach(function (p) {
+      var chip = document.createElement('span')
+      chip.className = 'folder-chip'
+      chip.innerHTML = '<span>📁</span> <b>' + p + '</b>'
+      folderChips.appendChild(chip)
+    })
+  }
+
+  document.getElementById('settingsBtn').addEventListener('click', function () {
+    renderFolderList()
+    settingsModal.classList.add('open')
+  })
+  document.getElementById('folderAddBtn').addEventListener('click', function () {
+    var v = folderInput.value.trim()
+    if (!v) return
+    if (state.folders.indexOf(v) !== -1) { showToast('该路径已存在'); return }
+    state.folders.push(v)
+    saveFolders(function () {
+      folderInput.value = ''
+      renderFolderList()
+      renderFolderStrip()
+      reloadFiles()
+    })
+  })
+  folderInput.addEventListener('keydown', function (e) {
+    if (e.key === 'Enter') document.getElementById('folderAddBtn').click()
+  })
+  settingsModal.addEventListener('click', function (e) { if (e.target === settingsModal) settingsModal.classList.remove('open') })
+  settingsModal.querySelector('[data-close-modal]').addEventListener('click', function () {
+    settingsModal.classList.remove('open')
+  })
+
+  /* ---------- 留言板 / 便利贴 ---------- */
+  var noteWall = document.getElementById('noteWall')
+  var noteGrid = document.getElementById('noteGrid')
+  var noteCount = document.getElementById('noteCount')
+  var noteEditor = document.getElementById('noteEditor')
+  var noteEditTitle = document.getElementById('noteEditTitle')
+  var editingNoteId = null
+
+  function saveNotes () {
+    try { localStorage.setItem(LS_NOTES, JSON.stringify(state.notes)) } catch (e) {}
+  }
+
+  function serverSaveNote (id, html, color, created) {
+    if (state.demoMode) return Promise.resolve(true)
+    var payload = { html: html, color: color }
+    if (id) {
+      return fetch('/api/notes/' + id, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      }).then(function (r) { return r.ok })
+    }
+    payload.created = created || Date.now()
+    return fetch('/api/notes', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    }).then(function (r) { return r.json() }).then(function (d) { return d.ok })
+  }
+
+  function serverDeleteNote (id) {
+    if (state.demoMode) return Promise.resolve(true)
+    return fetch('/api/notes/' + id, { method: 'DELETE' }).then(function (r) { return r.ok })
+  }
+
+  function renderNoteWall () {
+    noteWall.classList.toggle('collapsed', !!state.notesCollapsed)
+    noteCount.textContent = state.notes.length ? state.notes.length + ' 张' : '随手记两笔'
+    noteGrid.innerHTML = ''
+    if (!state.notes.length) {
+      var empty = document.createElement('div')
+      empty.className = 'note-empty'
+      empty.textContent = state.notesCollapsed ? '' : '还没有便利贴，点右上角「记一张」写下随手要记的内容（网址、灵感、待办…）'
+      noteGrid.appendChild(empty)
+      return
+    }
+    state.notes.forEach(function (n) {
+      var card = document.createElement('div')
+      card.className = 'note ' + (n.color || 'yellow')
+      card.setAttribute('data-note-id', n.id)
+      var t = new Date(n.created)
+      var tstr = t.getFullYear() + '-' + String(t.getMonth() + 1).padStart(2, '0') + '-' + String(t.getDate()).padStart(2, '0') + ' ' + String(t.getHours()).padStart(2, '0') + ':' + String(t.getMinutes()).padStart(2, '0')
+      card.innerHTML =
+        '<div class="note-ops">' +
+          '<button data-note-edit title="编辑" aria-label="编辑便利贴">' +
+            '<svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L6.832 19.82a4.5 4.5 0 01-1.897 1.13l-2.685.8.8-2.685a4.5 4.5 0 011.13-1.897L16.862 4.487z"/></svg>' +
+          '</button>' +
+          '<button data-note-del title="删除" aria-label="删除便利贴">' +
+            '<svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>' +
+          '</button>' +
+        '</div>' +
+        '<div class="note-body">' + n.html + '</div>' +
+        '<div class="note-time">' + tstr + '</div>'
+      card.querySelector('[data-note-edit]').addEventListener('click', function () { openNoteEditor(n.id) })
+      card.querySelector('[data-note-del]').addEventListener('click', function () {
+        var id = n.id
+        serverDeleteNote(id).then(function (ok) {
+          state.notes = state.notes.filter(function (x) { return x.id !== id })
+          saveNotes()
+          renderNoteWall()
+          showToast(ok ? '便利贴已删除' : '删除失败')
+        })
+      })
+      noteGrid.appendChild(card)
+    })
+  }
+
+  function resetNoteEditor () {
+    editingNoteId = null
+    noteEditor.innerHTML = ''
+    document.querySelectorAll('#noteColors .note-color').forEach(function (b) {
+      b.classList.toggle('active', b.getAttribute('data-color') === 'yellow')
+    })
+  }
+
+  function openNoteEditor (id) {
+    var n = null
+    if (id) n = state.notes.filter(function (x) { return x.id === id })[0]
+    editingNoteId = id || null
+    noteEditTitle.textContent = id ? '编辑便利贴' : '记一张便利贴'
+    noteEditor.innerHTML = n ? n.html : ''
+    document.querySelectorAll('#noteColors .note-color').forEach(function (b) {
+      b.classList.toggle('active', n ? (b.getAttribute('data-color') === n.color) : (b.getAttribute('data-color') === 'yellow'))
+    })
+    noteEditModal.classList.add('open')
+    noteEditor.focus()
+  }
+
+  document.getElementById('noteWallToggle').addEventListener('click', function (e) {
+    if (e.target.closest('.nw-add')) return
+    state.notesCollapsed = !state.notesCollapsed
+    try { localStorage.setItem(LS_NOTES_COLLAPSED, state.notesCollapsed ? '1' : '0') } catch (err) {}
+    renderNoteWall()
+  })
+  document.getElementById('noteAddBtn').addEventListener('click', function (e) {
+    e.stopPropagation()
+    resetNoteEditor()
+    noteEditModal.classList.add('open')
+    noteEditor.focus()
+  })
+  document.getElementById('noteSaveBtn').addEventListener('click', function () {
+    var html = noteEditor.innerHTML.trim()
+    if (!html || html === '<br>' || html === '<div><br></div>') { showToast('先写点内容再保存'); return }
+    var color = (document.querySelector('#noteColors .note-color.active') || {}).getAttribute && document.querySelector('#noteColors .note-color.active').getAttribute('data-color') || 'yellow'
+    var editingId = editingNoteId
+    var created = Date.now()
+    serverSaveNote(editingId, html, color, created).then(function (okSrv) {
+      if (editingId) {
+        var n = state.notes.filter(function (x) { return x.id === editingId })[0]
+        if (n) { n.html = html; n.color = color }
+      } else {
+        state.notes.unshift({
+          id: 'n' + created,
+          html: html,
+          color: color,
+          created: created
+        })
+      }
+      saveNotes()
+      if (state.notesCollapsed) {
+        state.notesCollapsed = false
+        try { localStorage.setItem(LS_NOTES_COLLAPSED, '0') } catch (err) {}
+      }
+      renderNoteWall()
+      noteEditModal.classList.remove('open')
+      showToast(editingId ? '便利贴已更新' : (okSrv === false ? '保存失败' : '已记下一张便利贴'))
+      editingNoteId = null
+    })
+  })
+  document.querySelectorAll('#noteColors .note-color').forEach(function (b) {
+    b.addEventListener('click', function () {
+      document.querySelectorAll('#noteColors .note-color').forEach(function (x) { x.classList.remove('active') })
+      b.classList.add('active')
+    })
+  })
+
+  // 富文本工具条
+  document.querySelectorAll('#noteEditModal .tt-fmt').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      var fmt = btn.getAttribute('data-fmt')
+      noteEditor.focus()
+      if (fmt === 'link') {
+        var url = prompt('输入链接地址：', 'https://')
+        if (!url) return
+        var sel = window.getSelection()
+        if (sel && !sel.isCollapsed) {
+          document.execCommand('createLink', false, url)
+          document.execCommand('unlink')
+          document.execCommand('createLink', false, url)
+        } else {
+          document.execCommand('insertHTML', false, '<a href="' + url + '" target="_blank" rel="noopener">' + url + '</a>')
+        }
+      } else if (fmt === 'clear') {
+        document.execCommand('removeFormat', false, null)
+      } else if (fmt === 'bullet') {
+        document.execCommand('insertUnorderedList', false, null)
+      } else if (fmt === 'list') {
+        document.execCommand('insertOrderedList', false, null)
+      } else {
+        document.execCommand(fmt, false, null)
+      }
+    })
+  })
+
+  /* ---------- 启动（异步，从后端加载真实数据） ---------- */
+  async function boot () {
+    try {
+      var results = await Promise.allSettled([
+        fetch('/api/files'),
+        fetch('/api/groups'),
+        fetch('/api/notes'),
+        fetch('/api/config')
+      ])
+      var filesResp = results[0]
+      if (filesResp.status === 'fulfilled' && filesResp.value.ok) {
+        var d = await filesResp.value.json()
+        state.files = (d.files || []).map(function (f) {
+          return { id: f.id, name: f.name, path: f.relPath, category: f.category,
+            size: f.size, modifiedAt: f.mtime, thumb: '', annotation: f.annotation || '' }
+        })
+        state.demoMode = false
+      }
+      var groupsResp = results[1]
+      if (groupsResp.status === 'fulfilled' && groupsResp.value.ok) {
+        state.groups = (await groupsResp.value.json()).groups || []
+      }
+      var notesResp = results[2]
+      if (notesResp.status === 'fulfilled' && notesResp.value.ok) {
+        state.notes = (await notesResp.value.json()).notes || []
+      }
+      var configResp = results[3]
+      if (configResp.status === 'fulfilled' && configResp.value.ok) {
+        state.folders = (await configResp.value.json()).shareFolders || []
+      }
+    } catch (e) { /* 后端不可用，保持 demo mock */ }
+
+    setupFileDnD()
+    setupGroupDnD()
+    renderFolderStrip()
+    renderNoteWall()
+    renderViews()
+  }
+  boot()
+})()
+</script>
+</body>
+</html>
