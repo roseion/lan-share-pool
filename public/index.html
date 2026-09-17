@@ -308,10 +308,11 @@
   .cat-app .cat-badge { background: #8b5cf6; }
   .cat-other .cat-badge { background: #94a3b8; }
   .annotated-mark {
-    position: absolute; top: 6px; right: 6px;
+    position: absolute; top: 38px; right: 8px;
     background: var(--accent); color: #fff;
     font-size: 11px; padding: 2px 8px; border-radius: 999px;
     display: flex; align-items: center; gap: 3px;
+    z-index: 2;
   }
   .annotated-mark svg { width: 12px; height: 12px; }
   .card-body {
@@ -338,6 +339,22 @@
     opacity: 0; transition: opacity .15s; z-index: 3;
   }
   .card:hover .hover-actions, .card:focus-visible .hover-actions { opacity: 1; }
+  /* 常驻勾选框（批量选择） */
+  .card-select {
+    position: absolute; top: 8px; right: 8px; z-index: 4;
+    width: 22px; height: 22px; border-radius: 6px; padding: 0;
+    border: 2px solid rgba(255,255,255,.9);
+    background: rgba(15,23,42,.3);
+    display: flex; align-items: center; justify-content: center;
+    color: transparent; cursor: pointer;
+    transition: background .15s, border-color .15s, color .15s;
+    box-shadow: 0 1px 3px rgba(0,0,0,.25);
+  }
+  .card-select:hover { border-color: #fff; background: rgba(15,23,42,.55); }
+  .card-select svg { width: 14px; height: 14px; }
+  .card.selected { border-color: var(--accent); box-shadow: 0 0 0 2px rgba(37,99,235,.3); }
+  .card.selected .card-select { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .card.selected .annotated-mark { display: none; }
   .mini-btn {
     width: 32px; height: 32px; border: none; border-radius: 8px;
     background: rgba(255,255,255,.92); backdrop-filter: blur(4px);
@@ -348,6 +365,29 @@
   .mini-btn:hover { color: var(--accent); background: #fff; }
   .mini-btn svg { width: 17px; height: 17px; }
   @media (max-width: 640px) { .hover-actions { display: none; } }
+
+  /* ---------- 批量选择底部操作栏 ---------- */
+  .select-bar {
+    position: fixed; left: 50%; bottom: 22px; transform: translateX(-50%);
+    display: flex; align-items: center; gap: 12px;
+    background: #1e293b; color: #fff;
+    padding: 9px 12px 9px 18px; border-radius: 999px;
+    box-shadow: 0 10px 28px rgba(0,0,0,.3); z-index: 60;
+    font-size: 14px; white-space: nowrap;
+  }
+  .select-bar[hidden] { display: none; }
+  .select-bar .sb-count { color: #cbd5e1; }
+  .select-bar .sb-count b { color: #fff; font-size: 15px; }
+  .select-bar button {
+    border: none; border-radius: 999px; padding: 7px 16px;
+    font-size: 13.5px; font-weight: 600; cursor: pointer;
+    font-family: inherit;
+  }
+  #selectGroupBtn { background: var(--accent); color: #fff; }
+  #selectGroupBtn:hover { background: #1d4ed8; }
+  #selectClearBtn { background: transparent; color: #cbd5e1; }
+  #selectClearBtn:hover { color: #fff; }
+  @media (max-width: 640px) { .select-bar { bottom: 14px; gap: 8px; padding: 8px 10px 8px 14px; } }
 
   /* ---------- Group view ---------- */
   .group-view { padding-bottom: 24px; }
@@ -809,6 +849,13 @@
   </footer>
 </aside>
 
+<!-- 批量选择底部操作栏 -->
+<div class="select-bar" id="selectBar" hidden>
+  <span class="sb-count"><b id="selectCount">0</b> 个已选</span>
+  <button id="selectGroupBtn" type="button">加入分组</button>
+  <button id="selectClearBtn" type="button">清空</button>
+</div>
+
 <script>
 (function () {
   'use strict'
@@ -921,6 +968,7 @@
     collapsed: {},
     notes: [],
     notesCollapsed: false,
+    selectedIds: {},  // 批量选择：{ [fileId]: true }
     demoMode: true  // 真实后端连上后切换为 false
   }
 
@@ -1217,6 +1265,9 @@
   function groupSvg () {
     return '<svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M17 14v6m-3-3h6M6 10h2a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v2a2 2 0 002 2zm10 0h2a2 2 0 002-2V6a2 2 0 00-2-2h-2a2 2 0 00-2 2v2a2 2 0 002 2zM6 20h2a2 2 0 002-2v-2a2 2 0 00-2-2H6a2 2 0 00-2 2v2a2 2 0 002 2z"/></svg>'
   }
+  function checkSvg () {
+    return '<svg fill="none" stroke="currentColor" stroke-width="3" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>'
+  }
 
   function fileUrl (file) {
     return '/files/' + file.id.split('/').map(encodeURIComponent).join('/')
@@ -1228,12 +1279,16 @@
 
   function buildCard (file) {
     var card = document.createElement('article')
-    card.className = 'card cat-' + file.category
+    var checked = !!state.selectedIds[file.id]
+    card.className = 'card cat-' + file.category + (checked ? ' selected' : '')
     card.setAttribute('role', 'button')
     card.setAttribute('tabindex', '0')
     card.setAttribute('draggable', 'true')
     card.setAttribute('data-id', file.id)
     card.setAttribute('aria-label', file.name + '，' + formatSize(file.size) + '，' + formatTime(file.modifiedAt))
+
+    var selectHtml = '<button class="card-select" data-select type="button" role="checkbox" aria-checked="' +
+      (checked ? 'true' : 'false') + '" aria-label="选择此文件" title="选择并加入分组">' + checkSvg() + '</button>'
 
     var isImage = file.category === 'image'
     var isVideo = file.category === 'video'
@@ -1285,7 +1340,7 @@
         '<button class="mini-btn" data-act="download" aria-label="下载">' + downloadSvg() + '</button>' +
       '</div>'
 
-    card.innerHTML = thumbHtml + markHtml + hoverHtml +
+    card.innerHTML = selectHtml + thumbHtml + markHtml + hoverHtml +
       '<div class="card-body">' +
         '<div class="card-name">' + file.name + '</div>' +
         '<div class="card-meta"><span>' + formatSize(file.size) + '</span><span>' + formatTime(file.modifiedAt) + '</span></div>' +
@@ -1294,6 +1349,12 @@
       '</div>'
 
     card.addEventListener('click', function (e) {
+      var selBtn = e.target.closest('[data-select]')
+      if (selBtn) {
+        e.stopPropagation()
+        toggleSelect(file.id, card)
+        return
+      }
       var actBtn = e.target.closest('[data-act]')
       if (actBtn) {
         e.stopPropagation()
@@ -1310,6 +1371,8 @@
         }
         return
       }
+      // 批量选择模式下，点卡片其余区域也切换选中；否则打开详情
+      if (e.target.closest('.card-select')) { toggleSelect(file.id, card); return }
       openDrawer(file)
     })
     card.addEventListener('keydown', function (e) {
@@ -1317,6 +1380,48 @@
     })
     return card
   }
+
+  /* ---------- 批量选择 ---------- */
+  var selectBar = document.getElementById('selectBar')
+  var selectCount = document.getElementById('selectCount')
+
+  function toggleSelect (id, cardEl) {
+    if (state.selectedIds[id]) {
+      delete state.selectedIds[id]
+      if (cardEl) cardEl.classList.remove('selected')
+    } else {
+      state.selectedIds[id] = true
+      if (cardEl) cardEl.classList.add('selected')
+    }
+    if (cardEl) {
+      var b = cardEl.querySelector('[data-select]')
+      if (b) b.setAttribute('aria-checked', state.selectedIds[id] ? 'true' : 'false')
+    }
+    updateSelectBar()
+  }
+
+  function updateSelectBar () {
+    var n = Object.keys(state.selectedIds).length
+    selectBar.hidden = n === 0
+    selectCount.textContent = String(n)
+  }
+
+  function clearSelection () {
+    state.selectedIds = {}
+    updateSelectBar()
+    renderViews()
+  }
+
+  function selectedFileList () {
+    return state.files.filter(function (f) { return state.selectedIds[f.id] })
+  }
+
+  document.getElementById('selectClearBtn').addEventListener('click', clearSelection)
+  document.getElementById('selectGroupBtn').addEventListener('click', function () {
+    var files = selectedFileList()
+    if (!files.length) return
+    openGroupPick(files)
+  })
 
   function renderGrid () {
     var files = filteredFiles()
@@ -1521,7 +1626,7 @@
   var groupPickModal = document.getElementById('groupPickModal')
   var groupEditModal = document.getElementById('groupEditModal')
   var noteEditModal = document.getElementById('noteEditModal')
-  var pickTarget = null
+  var pickTargets = []  // 待加入分组的文件数组（单文件时长度为 1）
 
   function openModal (modal) { modal.classList.add('open') }
   function closeAllModals () {
@@ -1541,40 +1646,79 @@
           groupEditModal.classList.contains('open') ||
           noteEditModal.classList.contains('open')) closeAllModals()
       else if (drawer.classList.contains('open')) closeDrawer()
+      else if (Object.keys(state.selectedIds).length) clearSelection()
     }
   })
 
-  function groupPickRow (g, file) {
+  /** 把某个分组的最新状态持久化（批量加入时用，避免全量同步的开销） */
+  function persistGroup (g) {
+    if (state.demoMode) {
+      try { localStorage.setItem(LS_GROUPS, JSON.stringify(state.groups)) } catch (e) { /* ignore */ }
+      return
+    }
+    fetch('/api/groups/' + g.id, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: g.name, note: g.note, files: g.files })
+    }).catch(function () { /* 失败时下次全量同步会纠正 */ })
+  }
+
+  function groupPickRow (g) {
+    var ids = pickTargets.map(function (f) { return f.id })
+    var isBatch = pickTargets.length > 1
+    var inCount = ids.filter(function (id) { return g.files.indexOf(id) !== -1 }).length
     var row = document.createElement('div')
-    var inGroup = g.files.indexOf(file.id) !== -1
-    row.className = 'group-pick' + (inGroup ? ' in' : '')
+    var inClass = isBatch ? (inCount > 0 && inCount === ids.length) : (inCount > 0)
+    row.className = 'group-pick' + (inClass ? ' in' : '')
+    var desc = isBatch
+      ? ('含 ' + inCount + '/' + ids.length + ' 个选中文件')
+      : (g.note || '无备注')
     row.innerHTML =
       '<span class="g-icon">🧷</span>' +
       '<span class="g-meta"><span class="t">' + g.name + '</span>' +
-      '<span class="d">' + (g.note || '无备注') + '</span></span>' +
+      '<span class="d">' + desc + '</span></span>' +
       '<span class="check">✓</span>'
     row.addEventListener('click', function () {
-      var idx = g.files.indexOf(file.id)
-      if (idx === -1) g.files.push(file.id)
-      else g.files.splice(idx, 1)
-      saveGroups()
-      row.classList.toggle('in', idx === -1)
-      if (state.view === 'category') renderGrid()
-      else renderGroups()
-      if (state.selected && state.selected.id === file.id) renderDrawerFile(file)
+      if (isBatch) {
+        // 批量：一次性把这批文件全部加入（已在组内的自动跳过）
+        var added = 0
+        ids.forEach(function (id) {
+          if (g.files.indexOf(id) === -1) { g.files.push(id); added++ }
+        })
+        if (added === 0) { showToast('选中的文件都已在此分组'); return }
+        persistGroup(g)
+        row.classList.add('in')
+        row.querySelector('.d').textContent = '含 ' + ids.length + '/' + ids.length + ' 个选中文件'
+        if (state.view === 'group') renderGroups()
+        showToast('已加入 ' + added + ' 个文件到「' + g.name + '」')
+      } else {
+        // 单文件：保持原来的勾选切换语义
+        var file = pickTargets[0]
+        var idx = g.files.indexOf(file.id)
+        if (idx === -1) g.files.push(file.id)
+        else g.files.splice(idx, 1)
+        saveGroups()
+        row.classList.toggle('in', idx === -1)
+        if (state.view === 'category') renderGrid()
+        else renderGroups()
+        if (state.selected && state.selected.id === file.id) renderDrawerFile(file)
+      }
     })
     return row
   }
 
-  function openGroupPick (file) {
-    pickTarget = file
-    document.getElementById('groupPickTitle').textContent = '加入分组：' + file.name
+  function openGroupPick (files) {
+    pickTargets = Array.isArray(files) ? files.slice() : [files]
+    var n = pickTargets.length
+    document.getElementById('groupPickTitle').textContent = n > 1
+      ? ('批量加入分组（已选 ' + n + ' 个文件）')
+      : ('加入分组：' + pickTargets[0].name)
     var list = document.getElementById('groupPickList')
     list.innerHTML = ''
     if (state.groups.length === 0) {
       list.innerHTML = '<div class="group-empty">还没有分组，先建一个吧</div>'
     } else {
-      state.groups.forEach(function (g) { list.appendChild(groupPickRow(g, file)) })
+      state.groups.forEach(function (g) { list.appendChild(groupPickRow(g)) })
     }
     openModal(groupPickModal)
   }
@@ -1583,15 +1727,15 @@
     var inp = document.getElementById('newGroupQuickInput')
     var name = inp.value.trim()
     if (!name) return
+    var ids = pickTargets.map(function (f) { return f.id })
     if (state.demoMode) {
-      var g0 = { id: 'g' + Date.now(), name: name, note: '', files: [] }
+      var g0 = { id: 'g' + Date.now(), name: name, note: '', files: ids.slice() }
       state.groups.push(g0)
-      if (pickTarget) g0.files.push(pickTarget.id)
       saveGroups()
       inp.value = ''
       if (state.view === 'group') renderGroups()
       else renderGrid()
-      openGroupPick(pickTarget)
+      openGroupPick(pickTargets)
       return
     }
     fetch('/api/groups', {
@@ -1600,9 +1744,9 @@
       body: JSON.stringify({ name: name, note: '' })
     }).then(function (r) { return r.json() }).then(function (d) {
       if (!d.ok) { showToast('创建失败'); return }
-      var g = { id: d.id, name: name, note: '', files: pickTarget ? [pickTarget.id] : [] }
+      var g = { id: d.id, name: name, note: '', files: ids.slice() }
       state.groups.push(g)
-      if (pickTarget) {
+      if (ids.length) {
         fetch('/api/groups/' + g.id, {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
@@ -1612,7 +1756,8 @@
       inp.value = ''
       if (state.view === 'group') renderGroups()
       else renderGrid()
-      openGroupPick(pickTarget)
+      if (ids.length) showToast('已新建分组并加入 ' + ids.length + ' 个文件')
+      openGroupPick(pickTargets)
     }).catch(function () { showToast('后端不可达') })
   }
   document.getElementById('newGroupQuickBtn').addEventListener('click', createQuickGroup)
