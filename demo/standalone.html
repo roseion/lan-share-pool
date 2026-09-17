@@ -202,6 +202,7 @@
   .cat-document .cat-badge { background: #f59e0b; }
   .cat-code .cat-badge { background: #14b8a6; }
   .cat-archive .cat-badge { background: #f97316; }
+  .cat-app .cat-badge { background: #8b5cf6; }
   .cat-other .cat-badge { background: #94a3b8; }
   .annotated-mark {
     position: absolute; top: 6px; right: 6px;
@@ -695,8 +696,13 @@
     { id: '27', name: '数据库备份-202412.sql.gz', path: '备份/数据库备份-202412.sql.gz', category: 'archive', size: 85*1024*1024, modifiedAt: NOW-1*DAY, thumb: '', annotation: '每日自动备份，保留30天' },
     { id: '28', name: '设计素材包.7z', path: '设计/设计素材包.7z', category: 'archive', size: 1.8*1024*1024*1024, modifiedAt: NOW-15*DAY, thumb: '', annotation: '含字体、图标、模板' },
     { id: '29', name: '字体包-思源黑体.ttf', path: '字体/思源黑体.ttf', category: 'other', size: 12*1024*1024, modifiedAt: NOW-60*DAY, thumb: '', annotation: '商用免费，全字重' },
-    { id: '30', name: '路由器固件.bin', path: '固件/路由器固件.bin', category: 'other', size: 16*1024*1024, modifiedAt: NOW-100*DAY, thumb: '', annotation: 'OpenWrt 23.05 稳定版' },
-    { id: '31', name: '未知文件.xyz', path: '临时/未知文件.xyz', category: 'other', size: 1024, modifiedAt: NOW-1*DAY, thumb: '', annotation: '下载时后缀丢失，待确认' }
+    { id: '30', name: '路由器固件.bin', path: '固件/路由器固件.bin', category: 'app', size: 16*1024*1024, modifiedAt: NOW-100*DAY, thumb: '', annotation: 'OpenWrt 23.05 稳定版' },
+    { id: '31', name: '未知文件.xyz', path: '临时/未知文件.xyz', category: 'other', size: 1024, modifiedAt: NOW-1*DAY, thumb: '', annotation: '下载时后缀丢失，待确认' },
+    { id: '32', name: '微信安装包-Windows64位.exe', path: '软件/微信安装包-Windows64位.exe', category: 'app', size: 128*1024*1024, modifiedAt: NOW-3*DAY, thumb: '', annotation: '官方最新版，安装到电脑' },
+    { id: '33', name: '网易云音乐-安卓.apk', path: '软件/网易云音乐-安卓.apk', category: 'app', size: 89*1024*1024, modifiedAt: NOW-6*DAY, thumb: '', annotation: '手机装机必备' },
+    { id: '34', name: 'Photoshop-苹果macOS.dmg', path: '软件/Photoshop-苹果macOS.dmg', category: 'app', size: 2.4*1024*1024*1024, modifiedAt: NOW-20*DAY, thumb: '', annotation: '' },
+    { id: '35', name: '微信安装包-Linux(AppImage).AppImage', path: '软件/微信安装包-Linux.AppImage', category: 'app', size: 210*1024*1024, modifiedAt: NOW-4*DAY, thumb: '', annotation: '' },
+    { id: '36', name: '手机银行-苹果iOS.ipa', path: '软件/手机银行-苹果iOS.ipa', category: 'app', size: 45*1024*1024, modifiedAt: NOW-11*DAY, thumb: '', annotation: '测试版，未签名需签名安装' }
   ]
 
   var CATEGORIES = [
@@ -705,6 +711,7 @@
     { key: 'document', label: '文档', icon: '📄' },
     { key: 'code', label: '代码', icon: '💻' },
     { key: 'archive', label: '压缩包', icon: '📦' },
+    { key: 'app', label: '软件', icon: '💿' },
     { key: 'other', label: '其他', icon: '📎' }
   ]
 
@@ -714,7 +721,21 @@
     video: ['mp4','mov','avi','mkv','flv','wmv','m4v','webm'],
     document: ['pdf','doc','docx','xls','xlsx','ppt','pptx','txt','md','rtf'],
     code: ['js','ts','vue','py','java','cpp','c','go','rs','html','css','json','xml','yaml','yml','sh','sql'],
-    archive: ['zip','rar','7z','tar','gz','bz2','xz']
+    archive: ['zip','rar','7z','tar','gz','bz2','xz'],
+    app: [
+      // Windows
+      'exe','msi','msix','appx','bat','cmd','com','scr','ps1','dll','ocx','cpl',
+      // Linux
+      'deb','rpm','appimage','run','flatpak','flatpakref','snap','elf',
+      // macOS
+      'app','dmg','pkg',
+      // Android
+      'apk','aab','xapk',
+      // iOS
+      'ipa',
+      // 通用可执行 / 安装包
+      'jar','bin'
+    ]
   }
   function getCategoryByExt (name) {
     var ext = (name.split('.').pop() || '').toLowerCase()
@@ -854,7 +875,7 @@
   }
 
   function iconFor (cat) {
-    return { image: '🖼️', video: '🎬', document: '📄', code: '💻', archive: '📦', other: '📎' }[cat] || '📎'
+    return { image: '🖼️', video: '🎬', document: '📄', code: '💻', archive: '📦', app: '💿', other: '📎' }[cat] || '📎'
   }
 
   /* ---------- render ---------- */

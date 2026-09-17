@@ -14,16 +14,16 @@ try {
   process.exit(1)
 }
 
-// 1. 31 个 mock 文件
+// 1. 36 个 mock 文件
 const ids = [...code.matchAll(/id: '(\d+)'/g)].length
 const cats = [...code.matchAll(/category: '(\w+)'/g)].map(x => x[1])
 const uniqueCats = [...new Set(cats)]
-if (ids !== 31) { console.error('FAIL: expected 31 files, got', ids); process.exit(1) }
-console.log('OK: 31 mock files')
-if (uniqueCats.sort().join(',') !== 'archive,code,document,image,other,video') {
+if (ids !== 36) { console.error('FAIL: expected 36 files, got', ids); process.exit(1) }
+console.log('OK: 36 mock files')
+if (uniqueCats.sort().join(',') !== 'app,archive,code,document,image,other,video') {
   console.error('FAIL: categories mismatch ->', uniqueCats); process.exit(1)
 }
-console.log('OK: 6 categories')
+console.log('OK: 7 categories')
 
 // 2. "全部" tab
 ;["current: 'all'", '<span>\u5168\u90e8</span>', "state.current !== 'all' && f.category !== state.current"].forEach(needle => {
@@ -47,5 +47,11 @@ console.log('OK: card annotation line present')
   if (code.indexOf(needle) === -1) { console.error('FAIL: missing settings marker:', needle); process.exit(1) }
 })
 console.log('OK: folder settings present')
+
+// 6. 软件/可执行分类
+;["'软件'", "'exe','msi','msix'", "'deb','rpm','appimage'", "'apk','aab'", "'ipa'", "'dmg','pkg'"].forEach(needle => {
+  if (code.indexOf(needle) === -1) { console.error('FAIL: missing app-category marker:', needle); process.exit(1) }
+})
+console.log('OK: executable/app category present')
 
 console.log('PASS: all checks done')
