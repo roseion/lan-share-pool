@@ -1181,6 +1181,12 @@
     groupTb.classList.toggle('highlight', state.view === 'group')
   }
 
+  // 右上角「分组视图」：在分类视图与分组视图之间切换
+  document.getElementById('groupToggleBtn').addEventListener('click', function () {
+    state.view = state.view === 'group' ? 'category' : 'group'
+    renderViews()
+  })
+
   function renderViews () {
     totalCount.textContent = '共 ' + state.files.length + ' 个文件'
     renderTabs()
