@@ -70,6 +70,12 @@ if (html.indexOf('id="deleteModal"') === -1) { console.error('FAIL: deleteModal 
 if (html.indexOf('id="deleteConfirmBtn"') === -1) { console.error('FAIL: deleteConfirmBtn element missing in HTML'); process.exit(1) }
 console.log('OK: delete wiring present')
 
+// 卡片操作按钮（hover-actions）需折行排列，避免窄卡片下与右上角勾选框重叠
+if (!/\.hover-actions \{[\s\S]{0,160}flex-wrap: wrap[\s\S]{0,60}width: 70px/.test(html)) {
+  console.error('FAIL: hover-actions 未折行（2×2），可能与勾选框重叠'); process.exit(1)
+}
+console.log('OK: hover-actions wraps (2x2)')
+
 // 批量选择功能接线检查
 const batchChecks = [
   ['selectedIds', 'selection state'],
