@@ -55,6 +55,29 @@ function raw (method, urlPath, headers) {
   })
 }
 
+/** 带二进制 body 的请求（上传用） */
+function uploadRaw (urlPath, headers, bodyBuf) {
+  return new Promise((resolve, reject) => {
+    const u = new URL(base + urlPath)
+    const r = http.request(u, {
+      method: 'POST',
+      headers: { ...headers, 'Content-Length': bodyBuf.length }
+    }, res => {
+      const chunks = []
+      res.on('data', c => chunks.push(c))
+      res.on('end', () => {
+        const text = Buffer.concat(chunks).toString('utf8')
+        let json = null
+        try { json = JSON.parse(text) } catch (e) {}
+        resolve({ status: res.statusCode, json, text })
+      })
+    })
+    r.on('error', reject)
+    r.write(bodyBuf)
+    r.end()
+  })
+}
+
 test('GET /api/health 返回索引数据', async () => {
   const { status, json } = await req('GET', '/api/health')
   assert.equal(status, 200)
@@ -193,6 +216,109 @@ test('文件从磁盘消失后，重扫清理旧备注记录', async () => {
     fs.writeFileSync(abs, 'fake-pdf-bytes')
     await req('POST', '/api/refresh')
   }
+})
+
+test('GET /api/dirs 返回共享根与子目录候选（绝对路径）', async () => {
+  const path = await import('node:path')
+  const { filesRoot } = await import('./helpers.js')
+  const { status, json } = await req('GET', '/api/dirs')
+  assert.equal(status, 200)
+  assert.ok(Array.isArray(json.dirs))
+  const values = json.dirs.map(d => d.value)
+  assert.ok(values.includes(filesRoot()), '应包含共享根本身')
+  assert.ok(values.includes(path.join(filesRoot(), 'photo')), '应包含子目录绝对路径')
+  const photo = json.dirs.find(d => d.value === path.join(filesRoot(), 'photo'))
+  assert.ok(photo.label.includes('photo'), 'label 应能看出目录层级')
+  assert.ok(!values.some(v => v.includes('.hidden')), '不应暴露隐藏目录')
+})
+
+test('上传：指定目标子目录时文件落在该目录', async () => {
+  const fs = await import('node:fs')
+  const path = await import('node:path')
+  const { filesRoot } = await import('./helpers.js')
+  const target = path.join(filesRoot(), 'photo')
+
+  const up = await uploadRaw('/api/upload', {
+    'X-File-Name': encodeURIComponent('新上传.txt'),
+    'X-Upload-Dir': encodeURIComponent(target)
+  }, Buffer.from('hello-upload'))
+
+  assert.equal(up.status, 201)
+  assert.ok(fs.existsSync(path.join(target, '新上传.txt')), '文件应落到指定子目录')
+
+  const list = await req('GET', '/api/files')
+  assert.ok(list.json.files.find(f => f.name === '新上传.txt'), '重扫后列表应包含新文件')
+})
+
+test('上传：目标目录不在共享范围内则拒绝', async () => {
+  const os = await import('node:os')
+  const up = await uploadRaw('/api/upload', {
+    'X-File-Name': encodeURIComponent('evil.txt'),
+    'X-Upload-Dir': encodeURIComponent(os.tmpdir())
+  }, Buffer.from('x'))
+  assert.equal(up.status, 400)
+  assert.match(up.json.error, /共享/)
+})
+
+test('上传：不存在的目标子目录会被自动创建', async () => {
+  const fs = await import('node:fs')
+  const path = await import('node:path')
+  const { filesRoot } = await import('./helpers.js')
+  const target = path.join(filesRoot(), 'photo', 'brand-new')
+
+  const up = await uploadRaw('/api/upload', {
+    'X-File-Name': encodeURIComponent('a.txt'),
+    'X-Upload-Dir': encodeURIComponent(target)
+  }, Buffer.from('a'))
+
+  assert.equal(up.status, 201)
+  assert.ok(fs.existsSync(path.join(target, 'a.txt')))
+})
+
+test('删除：从磁盘移除、列表消失、备注清理', async () => {
+  const fs = await import('node:fs')
+  const path = await import('node:path')
+  const { filesRoot } = await import('./helpers.js')
+  const abs = path.join(filesRoot(), 'code.js')
+
+  const list0 = await req('GET', '/api/files')
+  const target = list0.json.files.find(f => f.name === 'code.js')
+  assert.ok(target, '找到待删文件')
+
+  await req('PATCH', '/api/meta/' + encodeURIComponent(target.id), { annotation: '删前备注' })
+
+  const del = await req('DELETE', '/api/files/' + encodeURIComponent(target.id))
+  assert.equal(del.status, 200)
+  assert.equal(del.json.ok, true)
+  assert.ok(!fs.existsSync(abs), '磁盘文件应被删除')
+
+  const list1 = await req('GET', '/api/files')
+  assert.ok(!list1.json.files.find(f => f.id === target.id), '列表不应再包含已删文件')
+
+  const meta = await req('GET', '/api/meta/' + encodeURIComponent(target.id))
+  assert.equal(meta.json.annotation, '', '对应备注应被清理')
+})
+
+test('删除：目标不存在返回 404', async () => {
+  const del = await req('DELETE', '/api/files/' + encodeURIComponent('shared/not-there.txt'))
+  assert.equal(del.status, 404)
+})
+
+test('删除：文件被删后自动从分组中摘除', async () => {
+  const list0 = await req('GET', '/api/files')
+  const target = list0.json.files.find(f => f.name === '软件安装.exe')
+  assert.ok(target, '找到 exe 测试文件')
+
+  const created = await req('POST', '/api/groups', { name: '删除联动' })
+  const gid = created.json.id
+  await req('PATCH', '/api/groups/' + gid, { files: [target.id] })
+
+  const del = await req('DELETE', '/api/files/' + encodeURIComponent(target.id))
+  assert.equal(del.status, 200)
+
+  const groups = await req('GET', '/api/groups')
+  const g = groups.json.groups.find(x => x.id === gid)
+  assert.ok(!g.files.includes(target.id), '分组里不应再保留已删除文件的 id')
 })
 
 test('PUT /api/config 更新共享文件夹并重扫', async () => {

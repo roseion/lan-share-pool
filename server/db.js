@@ -116,6 +116,21 @@ export function deleteGroup (id) {
   return getDb().prepare('DELETE FROM groups WHERE id = ?').run(id)
 }
 
+/** 文件被删除后，把它从所有分组的成员列表里摘掉，避免出现指向空文件的幽灵成员 */
+export function removeIdFromGroups (fileId) {
+  const rows = listGroups()
+  let changed = 0
+  for (const r of rows) {
+    let files = []
+    try { files = JSON.parse(r.files || '[]') } catch (e) { files = [] }
+    if (!Array.isArray(files) || !files.includes(fileId)) continue
+    const next = files.filter(x => x !== fileId)
+    getDb().prepare('UPDATE groups SET files = ? WHERE id = ?').run(JSON.stringify(next), r.id)
+    changed++
+  }
+  return changed
+}
+
 export function closeDb () {
   if (db) { db.close(); db = null }
 }

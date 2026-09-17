@@ -6,8 +6,9 @@ import crypto from 'node:crypto'
 
 import { loadConfig, saveConfig, DATA_DIR } from './config.js'
 import { getDb, upsertFileMeta, pruneFileMeta, getAnnotation, setAnnotation,
-  listNotes, insertNote, deleteNote, updateNote, listGroups, insertGroup, updateGroup, deleteGroup } from './db.js'
-import { scanAll } from './scanner.js'
+  listNotes, insertNote, deleteNote, updateNote, listGroups, insertGroup, updateGroup, deleteGroup,
+  removeIdFromGroups } from './db.js'
+import { scanAll, scanDirs } from './scanner.js'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const PUBLIC_DIR = path.join(__dirname, '..', 'public')
@@ -122,6 +123,29 @@ const server = http.createServer(async (req, res) => {
       return sendJSON(res, 200, { ok: true, folders: cache.folders })
     }
 
+    /* 上传目标目录候选：每个共享根及其所有子目录，value 为可直接使用的绝对路径 */
+    if (p === '/api/dirs' && method === 'GET') {
+      const cfg = loadConfig()
+      const dirs = []
+      for (const root of cfg.shareFolders) {
+        const label = path.basename(root) || root
+        if (!fs.existsSync(root)) {
+          dirs.push({ value: root, label, root, ok: false })
+          continue
+        }
+        const subdirs = await scanDirs(root)
+        for (const sub of subdirs) {
+          dirs.push({
+            value: sub ? path.join(root, sub) : root,
+            label: sub ? label + ' / ' + sub.split('/').join(' / ') : label,
+            root,
+            ok: true
+          })
+        }
+      }
+      return sendJSON(res, 200, { dirs })
+    }
+
     /* 备注 */
     if (p.startsWith('/api/meta/') && method === 'PATCH') {
       const id = decodeRel(p.slice('/api/meta/'.length))
@@ -194,16 +218,40 @@ const server = http.createServer(async (req, res) => {
       return sendJSON(res, 200, { ok: true })
     }
 
-    /* 上传：原始二进制，文件名在 X-File-Name */
+    /* 上传：原始二进制，文件名在 X-File-Name，目标目录在 X-Upload-Dir */
     if (p === '/api/upload' && method === 'POST') {
       const cfg = loadConfig()
-      const targetRoot = cfg.shareFolders.find(fs.existsSync)
-      if (!targetRoot) return sendJSON(res, 400, { error: '没有可用共享文件夹' })
+      if (!cfg.shareFolders.length) return sendJSON(res, 400, { error: '没有可用共享文件夹' })
+
+      const dirHeader = req.headers['x-upload-dir'] ? decodeURIComponent(req.headers['x-upload-dir']) : ''
+      let targetDir
+      if (dirHeader) {
+        // 目标目录必须落在某个共享根之内，防止借上传写到系统目录
+        const real = path.resolve(dirHeader)
+        const inside = cfg.shareFolders.some(root => {
+          const rootReal = path.resolve(root)
+          return real === rootReal || real.startsWith(rootReal + path.sep)
+        })
+        if (!inside) return sendJSON(res, 400, { error: '目标目录不在共享文件夹范围内' })
+        targetDir = real
+      } else {
+        targetDir = cfg.shareFolders.find(fs.existsSync)
+        if (!targetDir) return sendJSON(res, 400, { error: '没有可用共享文件夹' })
+      }
+
+      if (!fs.existsSync(targetDir)) {
+        try {
+          fs.mkdirSync(targetDir, { recursive: true })
+        } catch (e) {
+          return sendJSON(res, 400, { error: '目标目录不存在且无法创建' })
+        }
+      }
+
       const fileName = decodeURIComponent(req.headers['x-file-name'] || '')
       // 只允许可安全落盘的名称，防止路径注入
       const cleanName = path.basename(fileName).replace(/[<>:"|?*\\/]/g, '_').trim()
       if (!cleanName) return sendJSON(res, 400, { error: '文件名无效' })
-      const dest = path.join(targetRoot, cleanName)
+      const dest = path.join(targetDir, cleanName)
       const ws = fs.createWriteStream(dest)
       let wrote = 0
       await new Promise((resolve, reject) => {
@@ -223,6 +271,24 @@ const server = http.createServer(async (req, res) => {
       })
       await refreshScan()
       return sendJSON(res, 201, { ok: true, name: cleanName, dest })
+    }
+
+    /* 删除文件：直接从磁盘移除；顺带把它从分组里摘掉，重扫会清理对应备注 */
+    if (p.startsWith('/api/files/') && method === 'DELETE') {
+      const id = decodeRel(p.slice('/api/files/'.length))
+      const f = cache.files.find(x => x.id === id)
+      if (!f) return sendJSON(res, 404, { error: '文件不存在' })
+      const abs = resolveFile(id)
+      if (!abs) return sendJSON(res, 403, { error: '拒绝：目标不在共享范围内' })
+      if (!fs.existsSync(abs)) return sendJSON(res, 404, { error: '文件已不在磁盘上' })
+      try {
+        fs.unlinkSync(abs)
+      } catch (e) {
+        return sendJSON(res, 500, { error: '删除失败：' + e.message })
+      }
+      removeIdFromGroups(id)
+      await refreshScan()
+      return sendJSON(res, 200, { ok: true, id, name: f.name })
     }
 
     /* 文件直通：支持 Range（视频拖拽/断点） */

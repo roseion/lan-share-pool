@@ -52,3 +52,13 @@ test('扫描：不存在的目录返回空且标注错误', async () => {
   assert.equal(files.length, 0)
   assert.equal(folders[0].ok, false)
 })
+
+test('目录树：scanDirs 返回根与所有子目录，跳过隐藏目录', async () => {
+  const { scanDirs } = await import('../server/scanner.js')
+  fs.mkdirSync(path.join(filesRoot(), 'photo', 'sub'), { recursive: true })
+  const dirs = await scanDirs(filesRoot())
+  assert.equal(dirs[0], '', '第一项应是根目录本身')
+  assert.ok(dirs.includes('photo'), '应包含子目录 photo')
+  assert.ok(dirs.includes('photo/sub'), '应包含嵌套子目录 photo/sub')
+  assert.ok(!dirs.some(d => d.includes('.hidden')), '应跳过隐藏目录')
+})

@@ -477,6 +477,30 @@
     background: var(--card); color: var(--text); resize: none;
   }
   .form-row input:focus, .form-row textarea:focus { outline: none; border-color: var(--accent); }
+  .form-row select {
+    width: 100%; padding: 8px 10px; font-size: 14px;
+    border: 1px solid var(--border); border-radius: 8px;
+    background: var(--card); color: var(--text);
+  }
+  .form-row select:focus { outline: none; border-color: var(--accent); }
+  .form-row .hint { font-size: 11px; color: var(--text-2); margin-top: 4px; }
+  .upload-file-list { margin-top: 8px; display: flex; flex-direction: column; gap: 4px; max-height: 160px; overflow-y: auto; }
+  .upload-file-item {
+    display: flex; align-items: center; gap: 8px; font-size: 13px;
+    padding: 6px 8px; border-radius: 7px; background: rgba(100,116,139,.08);
+  }
+  .upload-file-item .uf-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .upload-file-item .uf-size { color: var(--text-2); font-size: 12px; flex-shrink: 0; }
+  .upload-file-empty { font-size: 12px; color: var(--text-2); margin-top: 8px; }
+  .danger-note { font-size: 13px; color: var(--text); margin-bottom: 10px; }
+  .danger-note b { color: #dc2626; }
+  .del-file-info {
+    background: rgba(239,68,68,.08); border: 1px solid rgba(239,68,68,.25);
+    border-radius: 9px; padding: 10px 12px;
+  }
+  .del-name { font-size: 14px; font-weight: 700; word-break: break-all; }
+  .del-path { font-size: 12px; color: var(--text-2); margin-top: 4px; word-break: break-all; }
+  .mini-btn.danger:hover { color: #dc2626; background: #fee2e2; }
   .group-pick-list { display: flex; flex-direction: column; gap: 2px; }
   .group-pick {
     display: flex; align-items: center; gap: 10px;
@@ -814,6 +838,57 @@
     <div class="mfoot" style="flex-wrap:wrap">
       <button class="mbtn-danger" id="groupDeleteBtn" style="display:none">删除分组</button>
       <button class="mbtn-primary" id="groupSaveBtn">保存</button>
+    </div>
+  </div>
+</div>
+
+<!-- 上传 Modal：先选目标目录，再选文件 -->
+<div class="modal-mask" id="uploadModal">
+  <div class="modal">
+    <header>
+      <h3>上传文件</h3>
+      <button class="icon-btn" data-close-modal aria-label="关闭">
+        <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
+      </button>
+    </header>
+    <div class="mbody">
+      <div class="form-row">
+        <label for="uploadDirSelect">目标目录</label>
+        <select id="uploadDirSelect"></select>
+        <p class="hint" id="uploadDirHint">上传的文件会保存到选定的目录下</p>
+      </div>
+      <div class="form-row">
+        <label>待上传文件</label>
+        <button class="primary-btn" id="uploadPickBtn" type="button" style="border-radius:8px">＋ 选择文件</button>
+        <div class="upload-file-list" id="uploadFileList"></div>
+      </div>
+    </div>
+    <div class="mfoot">
+      <button class="mbtn-ghost" data-close-modal type="button">取消</button>
+      <button class="mbtn-primary" id="uploadConfirmBtn" type="button">上传</button>
+    </div>
+  </div>
+</div>
+
+<!-- 删除确认 Modal：直接从硬盘删除 -->
+<div class="modal-mask" id="deleteModal">
+  <div class="modal">
+    <header>
+      <h3>删除文件</h3>
+      <button class="icon-btn" data-close-modal aria-label="关闭">
+        <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
+      </button>
+    </header>
+    <div class="mbody">
+      <p class="danger-note">将从硬盘上<b>永久删除</b>，无法撤销。</p>
+      <div class="del-file-info">
+        <div class="del-name" id="deleteName"></div>
+        <div class="del-path" id="deletePath"></div>
+      </div>
+    </div>
+    <div class="mfoot">
+      <button class="mbtn-ghost" data-close-modal type="button">取消</button>
+      <button class="mbtn-danger" id="deleteConfirmBtn" type="button">永久删除</button>
     </div>
   </div>
 </div>
@@ -1262,6 +1337,9 @@
   function downloadSvg () {
     return '<svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>'
   }
+  function trashSvg () {
+    return '<svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>'
+  }
   function groupSvg () {
     return '<svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M17 14v6m-3-3h6M6 10h2a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v2a2 2 0 002 2zm10 0h2a2 2 0 002-2V6a2 2 0 00-2-2h-2a2 2 0 00-2 2v2a2 2 0 002 2zM6 20h2a2 2 0 002-2v-2a2 2 0 00-2-2H6a2 2 0 00-2 2v2a2 2 0 002 2z"/></svg>'
   }
@@ -1338,6 +1416,7 @@
         '<button class="mini-btn" data-act="group" aria-label="分组">' + groupSvg() + '</button>' +
         '<button class="mini-btn" data-act="preview" aria-label="预览">' + eyeSvg() + '</button>' +
         '<button class="mini-btn" data-act="download" aria-label="下载">' + downloadSvg() + '</button>' +
+        '<button class="mini-btn danger" data-act="delete" aria-label="删除" title="从硬盘永久删除">' + trashSvg() + '</button>' +
       '</div>'
 
     card.innerHTML = selectHtml + thumbHtml + markHtml + hoverHtml +
@@ -1361,6 +1440,7 @@
         var act = actBtn.getAttribute('data-act')
         if (act === 'group') openGroupPick(file)
         else if (act === 'preview') openPreview(file)
+        else if (act === 'delete') openDeleteConfirm(file)
         else {
           var a = document.createElement('a')
           a.href = fileUrl(file) + '?download=1'
@@ -1630,21 +1710,17 @@
 
   function openModal (modal) { modal.classList.add('open') }
   function closeAllModals () {
-    groupPickModal.classList.remove('open')
-    groupEditModal.classList.remove('open')
-    noteEditModal.classList.remove('open')
+    document.querySelectorAll('.modal-mask.open').forEach(function (m) { m.classList.remove('open') })
   }
   document.querySelectorAll('[data-close-modal]').forEach(function (b) {
     b.addEventListener('click', closeAllModals)
   })
-  ;[groupPickModal, groupEditModal, noteEditModal].forEach(function (m) {
+  document.querySelectorAll('.modal-mask').forEach(function (m) {
     m.addEventListener('click', function (e) { if (e.target === m) closeAllModals() })
   })
   document.addEventListener('keydown', function (e) {
     if (e.key === 'Escape') {
-      if (groupPickModal.classList.contains('open') ||
-          groupEditModal.classList.contains('open') ||
-          noteEditModal.classList.contains('open')) closeAllModals()
+      if (document.querySelector('.modal-mask.open')) closeAllModals()
       else if (drawer.classList.contains('open')) closeDrawer()
       else if (Object.keys(state.selectedIds).length) clearSelection()
     }
@@ -1859,16 +1935,91 @@
     toastTimer = setTimeout(function () { t.classList.remove('show') }, 2200)
   }
 
+  /* ---------- 上传：先选目标目录，再选文件 ---------- */
+  var uploadModal = document.getElementById('uploadModal')
+  var uploadDirSelect = document.getElementById('uploadDirSelect')
+  var uploadDirHint = document.getElementById('uploadDirHint')
+  var uploadFileList = document.getElementById('uploadFileList')
+  var uploadConfirmBtn = document.getElementById('uploadConfirmBtn')
+  var pendingFiles = []
+
+  function renderUploadFileList () {
+    uploadFileList.innerHTML = ''
+    if (!pendingFiles.length) {
+      uploadFileList.innerHTML = '<div class="upload-file-empty">还没有选择文件</div>'
+      return
+    }
+    pendingFiles.forEach(function (f) {
+      var row = document.createElement('div')
+      row.className = 'upload-file-item'
+      row.innerHTML = '<span class="uf-name"></span><span class="uf-size">' + formatSize(f.size) + '</span>'
+      row.querySelector('.uf-name').textContent = f.name
+      uploadFileList.appendChild(row)
+    })
+  }
+
+  function loadUploadDirs () {
+    uploadDirSelect.innerHTML = ''
+    if (state.demoMode) {
+      var opt = document.createElement('option')
+      opt.value = 'demo'
+      opt.textContent = '演示模式（不落盘）'
+      uploadDirSelect.appendChild(opt)
+      uploadDirHint.textContent = '演示模式不会真正保存文件'
+      return Promise.resolve()
+    }
+    return fetch('/api/dirs').then(function (r) { return r.json() }).then(function (d) {
+      var dirs = (d && d.dirs) || []
+      if (!dirs.length) {
+        uploadDirSelect.innerHTML = '<option value="">没有可用的共享文件夹</option>'
+        uploadDirHint.textContent = '请先在设置里添加共享文件夹'
+        return
+      }
+      dirs.forEach(function (item) {
+        var o = document.createElement('option')
+        o.value = item.value
+        o.textContent = item.ok ? item.label : item.label + '（目录不存在）'
+        if (!item.ok) o.disabled = true
+        uploadDirSelect.appendChild(o)
+      })
+      var remembered = null
+      try { remembered = localStorage.getItem('uploadDir') } catch (e) {}
+      if (remembered && dirs.some(function (x) { return x.value === remembered && x.ok })) {
+        uploadDirSelect.value = remembered
+      }
+      uploadDirHint.textContent = '文件会保存到：' + uploadDirSelect.value
+    }).catch(function () {
+      uploadDirSelect.innerHTML = '<option value="">无法获取目录列表</option>'
+    })
+  }
+
+  uploadDirSelect.addEventListener('change', function () {
+    uploadDirHint.textContent = '文件会保存到：' + uploadDirSelect.value
+    try { localStorage.setItem('uploadDir', uploadDirSelect.value) } catch (e) {}
+  })
+
+  function openUploadModal () {
+    pendingFiles = []
+    renderUploadFileList()
+    loadUploadDirs().then(function () { openModal(uploadModal) })
+  }
+
   function handleFiles (fileList) {
-    var arr = Array.prototype.slice.call(fileList)
+    pendingFiles = Array.prototype.slice.call(fileList)
+    renderUploadFileList()
+  }
+
+  function doUpload () {
+    if (!pendingFiles.length) { showToast('请先选择文件'); return }
+
     if (state.demoMode) {
       var addedDemo = 0
       var uidDemo = Date.now()
-      for (var k = 0; k < arr.length; k++) {
-        var fd = arr[k]
+      for (var k = 0; k < pendingFiles.length; k++) {
+        var fd = pendingFiles[k]
         var catD = getCategoryByExt(fd.name)
         var thumbD = catD === 'image' ? URL.createObjectURL(fd) : (catD === 'video' ? svgThumb('🎬', '#fcd34d', '#f59e0b') : '')
-        var fake = {
+        state.files.push({
           id: 'u' + (uidDemo + k),
           name: fd.name,
           path: '上传/' + fd.name,
@@ -1878,10 +2029,11 @@
           thumb: thumbD,
           annotation: '',
           uploaded: true
-        }
-        state.files.push(fake)
+        })
         addedDemo++
       }
+      closeAllModals()
+      pendingFiles = []
       if (addedDemo) {
         showToast('已上传 ' + addedDemo + ' 个文件（演示模式，刷新后还原）')
         if (state.view === 'group') renderViews()
@@ -1889,37 +2041,113 @@
       }
       return
     }
-    // 真实模式：走后端上传
-    var doneUp = 0, failUp = 0
-    var totalUp = arr.length
-    arr.forEach(function (f) {
+
+    var targetDir = uploadDirSelect.value
+    if (!targetDir) { showToast('请先选择目标目录'); return }
+
+    var files = pendingFiles.slice()
+    var totalUp = files.length
+    var doneUp = 0, failUp = 0, firstErr = ''
+    uploadConfirmBtn.disabled = true
+    uploadConfirmBtn.textContent = '上传中 0/' + totalUp
+
+    files.forEach(function (f) {
       fetch('/api/upload', {
         method: 'POST',
-        headers: { 'X-File-Name': encodeURIComponent(f.name) },
+        headers: {
+          'X-File-Name': encodeURIComponent(f.name),
+          'X-Upload-Dir': encodeURIComponent(targetDir)
+        },
         body: f
       }).then(function (r) { return r.json() }).then(function (d) {
-        if (d.ok) doneUp++
-        else failUp++
-        if (doneUp + failUp === totalUp) afterUpload(doneUp, failUp)
+        if (d && d.ok) doneUp++
+        else { failUp++; if (d && d.error && !firstErr) firstErr = d.error }
       }).catch(function () {
         failUp++
-        if (doneUp + failUp === totalUp) afterUpload(doneUp, failUp)
+      }).then(function () {
+        var finished = doneUp + failUp
+        uploadConfirmBtn.textContent = '上传中 ' + finished + '/' + totalUp
+        if (finished === totalUp) afterUpload(doneUp, failUp, firstErr)
       })
     })
   }
 
-  function afterUpload (okCount, failCount) {
-    if (okCount > 0) showToast('上传完成：' + okCount + ' 个成功' + (failCount > 0 ? '，' + failCount + ' 个失败' : ''))
-    else showToast('上传失败，后端不可达')
+  function afterUpload (okCount, failCount, firstErr) {
+    uploadConfirmBtn.disabled = false
+    uploadConfirmBtn.textContent = '上传'
+    if (okCount > 0) {
+      closeAllModals()
+      pendingFiles = []
+      renderUploadFileList()
+      showToast('上传完成：' + okCount + ' 个成功' +
+        (failCount > 0 ? '，' + failCount + ' 个失败' + (firstErr ? '（' + firstErr + '）' : '') : ''))
+    } else {
+      showToast('上传失败' + (firstErr ? '：' + firstErr : '，后端不可达'))
+    }
     reloadFiles()
   }
 
-  function triggerUpload () { fileInput.click() }
-  document.getElementById('uploadBtn').addEventListener('click', triggerUpload)
-  document.getElementById('footerUploadBtn').addEventListener('click', triggerUpload)
+  document.getElementById('uploadBtn').addEventListener('click', openUploadModal)
+  document.getElementById('footerUploadBtn').addEventListener('click', openUploadModal)
+  document.getElementById('uploadPickBtn').addEventListener('click', function () { fileInput.click() })
+  uploadConfirmBtn.addEventListener('click', doUpload)
   fileInput.addEventListener('change', function () {
     handleFiles(fileInput.files)
     fileInput.value = ''
+  })
+
+  /* ---------- 删除文件：直接从硬盘移除 ---------- */
+  var deleteModal = document.getElementById('deleteModal')
+  var deleteName = document.getElementById('deleteName')
+  var deletePath = document.getElementById('deletePath')
+  var deleteConfirmBtn = document.getElementById('deleteConfirmBtn')
+  var pendingDelete = null
+
+  function openDeleteConfirm (file) {
+    pendingDelete = file
+    deleteName.textContent = file.name
+    deletePath.textContent = file.path || file.id
+    openModal(deleteModal)
+  }
+
+  deleteConfirmBtn.addEventListener('click', function () {
+    if (!pendingDelete) return
+    var file = pendingDelete
+
+    if (state.demoMode) {
+      state.files = state.files.filter(function (f) { return f.id !== file.id })
+      pendingDelete = null
+      closeAllModals()
+      showToast('已删除（演示模式，刷新后还原）')
+      if (state.view === 'group') renderViews()
+      else { renderTabs(); renderGrid() }
+      return
+    }
+
+    deleteConfirmBtn.disabled = true
+    deleteConfirmBtn.textContent = '删除中…'
+    fetch('/api/files/' + file.id.split('/').map(encodeURIComponent).join('/'), {
+      method: 'DELETE'
+    }).then(function (r) {
+      return r.json().then(function (d) { return { ok: r.ok, d: d } })
+    }).then(function (res) {
+      deleteConfirmBtn.disabled = false
+      deleteConfirmBtn.textContent = '永久删除'
+      if (res.ok) {
+        delete state.selectedIds[file.id]
+        pendingDelete = null
+        closeAllModals()
+        showToast('已删除：' + file.name)
+        reloadFiles()
+        updateSelectBar()
+      } else {
+        showToast('删除失败：' + ((res.d && res.d.error) || '未知错误'))
+      }
+    }).catch(function () {
+      deleteConfirmBtn.disabled = false
+      deleteConfirmBtn.textContent = '永久删除'
+      showToast('删除失败，后端不可达')
+    })
   })
 
   /* ---------- annotation drawer ---------- */

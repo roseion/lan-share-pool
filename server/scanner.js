@@ -85,6 +85,28 @@ export async function scanRoot (shareRoot, shareLabel = null) {
   return results
 }
 
+/**
+ * 递归收集单个共享根下的所有子目录（相对路径，'' 代表根目录本身）。
+ * 与 scanRoot 用同一套跳过规则，保证「能扫到文件的目录」都可作为上传目标。
+ */
+export async function scanDirs (shareRoot) {
+  const dirs = ['']
+
+  async function walk (dir, relDir) {
+    const entries = await fs.promises.readdir(dir, { withFileTypes: true }).catch(() => [])
+    for (const entry of entries) {
+      if (!entry.isDirectory()) continue
+      if (shouldSkip(entry.name, entry)) continue
+      const rel = relDir ? relDir + '/' + entry.name : entry.name
+      dirs.push(rel)
+      await walk(path.join(dir, entry.name), rel)
+    }
+  }
+
+  await walk(shareRoot, '')
+  return dirs
+}
+
 /** 扫描多个共享根，合并结果；不存在的目录返回空数组并标注。 */
 export async function scanAll (shareFolders) {
   const allImports = await Promise.all(

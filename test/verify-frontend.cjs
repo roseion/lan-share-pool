@@ -40,6 +40,36 @@ for (const bad of ['真实项目中走 GET', 'alert(\'预览']) {
 }
 console.log('OK: no stale placeholders')
 
+// 上传目标目录接线
+const uploadChecks = [
+  ["'/api/dirs'", 'dirs API'],
+  ['X-Upload-Dir', 'upload target dir header'],
+  ['uploadDirSelect', 'upload dir select element'],
+  ['uploadPickBtn', 'upload pick button'],
+  ['uploadConfirmBtn', 'upload confirm button'],
+  ['function openUploadModal', 'openUploadModal'],
+  ['function doUpload', 'doUpload']
+]
+for (const [needle, desc] of uploadChecks) {
+  if (code.indexOf(needle) === -1) { console.error('FAIL: missing', desc, '->', needle); process.exit(1) }
+}
+if (html.indexOf('id="uploadModal"') === -1) { console.error('FAIL: uploadModal element missing in HTML'); process.exit(1) }
+if (html.indexOf('id="uploadDirSelect"') === -1) { console.error('FAIL: uploadDirSelect element missing in HTML'); process.exit(1) }
+console.log('OK: upload target-dir wiring present')
+
+// 删除功能接线
+const deleteChecks = [
+  ["method: 'DELETE'", 'delete method'],
+  ['deleteConfirmBtn', 'delete confirm button'],
+  ['function openDeleteConfirm', 'openDeleteConfirm']
+]
+for (const [needle, desc] of deleteChecks) {
+  if (code.indexOf(needle) === -1) { console.error('FAIL: missing', desc, '->', needle); process.exit(1) }
+}
+if (html.indexOf('id="deleteModal"') === -1) { console.error('FAIL: deleteModal element missing in HTML'); process.exit(1) }
+if (html.indexOf('id="deleteConfirmBtn"') === -1) { console.error('FAIL: deleteConfirmBtn element missing in HTML'); process.exit(1) }
+console.log('OK: delete wiring present')
+
 // 批量选择功能接线检查
 const batchChecks = [
   ['selectedIds', 'selection state'],
