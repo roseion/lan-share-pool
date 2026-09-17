@@ -114,6 +114,109 @@
     overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
   }
 
+  /* ---------- 留言板 / 便利贴 ---------- */
+  .note-wall {
+    margin: 14px 0;
+    background: var(--card); border: 1px solid var(--border);
+    border-radius: var(--radius); overflow: hidden;
+  }
+  .note-wall-head {
+    display: flex; align-items: center; gap: 10px;
+    padding: 12px 16px; cursor: pointer; user-select: none;
+  }
+  .note-wall-head:hover { background: rgba(100,116,139,.05); }
+  .note-wall-head .nw-chevron {
+    width: 22px; height: 22px; flex-shrink: 0;
+    display: inline-flex; align-items: center; justify-content: center;
+    color: var(--text-2); transition: transform .2s;
+  }
+  .note-wall.collapsed .nw-chevron { transform: rotate(-90deg); }
+  .nw-chevron svg { width: 16px; height: 16px; }
+  .note-wall-head .nw-title { font-size: 15px; font-weight: 700; }
+  .note-wall-head .nw-sub { font-size: 12px; color: var(--text-2); }
+  .note-wall-head .nw-add { margin-left: auto; }
+  .note-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 12px; padding: 4px 16px 16px;
+  }
+  .note-wall.collapsed .note-grid { display: none; }
+  .note {
+    position: relative; padding: 14px 14px 12px;
+    border-radius: 3px; min-height: 84px;
+    box-shadow: 2px 4px 10px rgba(0,0,0,.13);
+    color: #27272a;
+    transform: rotate(var(--twist, 0deg));
+    transition: transform .15s, box-shadow .15s;
+  }
+  .note:hover { transform: rotate(0deg) scale(1.02); box-shadow: 4px 8px 18px rgba(0,0,0,.18); }
+  .note.yellow { background: #fef08a; --twist: -.6deg; }
+  .note.pink { background: #fbcfe8; --twist: .7deg; }
+  .note.blue { background: #bfdbfe; --twist: -.8deg; }
+  .note.green { background: #bbf7d0; --twist: .6deg; }
+  .note.orange { background: #fed7aa; --twist: -.4deg; }
+  .note::after {
+    content: ''; position: absolute; top: 0; right: 0;
+    width: 20px; height: 20px;
+    background: linear-gradient(135deg, transparent 50%, rgba(0,0,0,.08) 50%);
+    border-bottom-left-radius: 4px;
+  }
+  .note .note-body { font-size: 13px; line-height: 1.65; word-break: break-word; }
+  .note .note-body p { margin: 0 0 6px; }
+  .note .note-body p:last-child { margin-bottom: 0; }
+  .note .note-body a { color: #1d4ed8; text-decoration: underline; }
+  .note .note-body ul { margin: 4px 0; padding-left: 18px; }
+  .note .note-body b, .note .note-body strong { font-weight: 700; }
+  .note .note-body em, .note .note-body i { font-style: italic; }
+  .note .note-time { margin-top: 8px; font-size: 11px; color: rgba(39,39,42,.55); display: flex; align-items: center; gap: 10px; }
+  .note .note-time .note-tags { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .note-ops {
+    position: absolute; top: 6px; right: 6px;
+    display: flex; gap: 4px; opacity: 0; transition: opacity .15s; z-index: 2;
+  }
+  .note:hover .note-ops { opacity: 1; }
+  .note-ops button {
+    width: 26px; height: 26px; border: none; border-radius: 6px;
+    background: rgba(255,255,255,.9); box-shadow: 0 1px 3px rgba(0,0,0,.12);
+    display: inline-flex; align-items: center; justify-content: center;
+    color: #27272a; cursor: pointer;
+  }
+  .note-ops button:hover { background: #fff; color: #1d4ed8; }
+  .note-ops svg { width: 14px; height: 14px; }
+  .note-empty { padding: 26px 16px; text-align: center; color: var(--text-2); font-size: 13px; }
+
+  /* 富文本编辑器 */
+  .note-editor-toolbar {
+    display: flex; gap: 4px; flex-wrap: wrap; align-items: center;
+    padding: 8px 10px; border: 1px solid var(--border); border-bottom: none;
+    border-radius: 8px 8px 0 0; background: var(--bg);
+  }
+  .note-editor-toolbar button {
+    width: 34px; height: 30px; border: none; border-radius: 6px;
+    background: transparent; color: var(--text); cursor: pointer;
+    font-size: 14px; font-weight: 600; display: inline-flex; align-items: center; justify-content: center;
+  }
+  .note-editor-toolbar button:hover { background: rgba(100,116,139,.15); }
+  .note-editor-toolbar .tsep { width: 1px; height: 18px; background: var(--border); margin: 0 4px; }
+  .note-editor-toolbar .tbtn-wide { width: auto; padding: 0 10px; font-weight: 500; font-size: 12px; color: var(--text-2); }
+  .note-editor {
+    min-height: 150px; max-height: 40vh; overflow-y: auto;
+    padding: 12px; border: 1px solid var(--border); border-radius: 0 0 8px 8px;
+    outline: none; font-size: 14px; line-height: 1.7;
+    background: var(--card); color: var(--text);
+  }
+  .note-editor:focus { border-color: var(--accent); }
+  .note-editor:empty::before { content: attr(data-placeholder); color: var(--text-2); pointer-events: none; }
+  .note-editor a { color: var(--accent); text-decoration: underline; }
+  .note-colors { display: flex; gap: 8px; }
+  .note-color {
+    width: 30px; height: 30px; border-radius: 50%; cursor: pointer;
+    border: 3px solid transparent; box-shadow: inset 0 0 0 1px rgba(0,0,0,.1);
+    transition: transform .12s;
+  }
+  .note-color:hover { transform: scale(1.12); }
+  .note-color.active { border-color: var(--text); transform: scale(1.12); }
+
   /* ---------- Tabs ---------- */
   nav.tabs {
     position: sticky; top: 57px; z-index: 15;
@@ -498,6 +601,23 @@
 </nav>
 
 <main>
+  <!-- 在线留言板 -->
+  <section class="note-wall" id="noteWall" aria-label="留言板">
+    <div class="note-wall-head" id="noteWallToggle">
+      <span class="nw-chevron" id="noteChevron">
+        <svg fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5"/></svg>
+      </span>
+      <span style="font-size:17px">📌</span>
+      <span class="nw-title">留言板</span>
+      <span class="nw-sub" id="noteCount"></span>
+      <button class="primary-btn nw-add" id="noteAddBtn">
+        <svg fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24" style="width:15px;height:15px"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15"/></svg>
+        记一张
+      </button>
+    </div>
+    <div class="note-grid" id="noteGrid"></div>
+  </section>
+
   <div id="categoryView">
     <div class="grid" id="fileGrid" role="list" aria-label="文件列表"></div>
     <div class="empty" id="emptyState" style="display:none">
@@ -540,6 +660,47 @@
 <input type="file" id="fileInput" multiple style="display:none">
 
 <div class="toast" id="toast"></div>
+
+<!-- 留言板 · 便利贴编辑器 Modal -->
+<div class="modal-mask" id="noteEditModal">
+  <div class="modal" style="max-width:520px">
+    <header>
+      <h3 id="noteEditTitle">记一张便利贴</h3>
+      <button class="icon-btn" data-close-modal aria-label="关闭">
+        <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
+      </button>
+    </header>
+    <div class="mbody">
+      <div class="note-editor-toolbar">
+        <button type="button" data-fmt="bold" title="加粗" class="tt-fmt">B</button>
+        <button type="button" data-fmt="italic" title="斜体" class="tt-fmt" style="font-style:italic">I</button>
+        <button type="button" data-fmt="underline" title="下划线" class="tt-fmt" style="text-decoration:underline">U</button>
+        <button type="button" data-fmt="strike" title="删除线" class="tt-fmt" style="text-decoration:line-through">S</button>
+        <span class="tsep"></span>
+        <button type="button" data-fmt="link" title="插入链接" class="tt-fmt">🔗</button>
+        <button type="button" data-fmt="list" title="无序列表" class="tt-fmt">≡</button>
+        <button type="button" data-fmt="bullet" title="项目符号" class="tt-fmt">•</button>
+        <span class="tsep"></span>
+        <button type="button" data-fmt="clear" title="清除格式" class="tt-fmt tbtn-wide">清除格式</button>
+      </div>
+      <div class="note-editor" id="noteEditor" contenteditable="true" data-placeholder="写点什么… 支持加粗、斜体、链接、列表等。例如：把常用网址、临时灵感、待办事项记在这里。"></div>
+      <div class="form-row" style="margin-top:12px">
+        <label>便利贴颜色</label>
+        <div class="note-colors" id="noteColors">
+          <button class="note-color active" data-color="yellow" style="background:#fef08a" title="黄色"></button>
+          <button class="note-color" data-color="pink" style="background:#fbcfe8" title="粉色"></button>
+          <button class="note-color" data-color="blue" style="background:#bfdbfe" title="蓝色"></button>
+          <button class="note-color" data-color="green" style="background:#bbf7d0" title="绿色"></button>
+          <button class="note-color" data-color="orange" style="background:#fed7aa" title="橙色"></button>
+        </div>
+      </div>
+    </div>
+    <div class="mfoot">
+      <button class="mbtn-ghost" data-close-modal>取消</button>
+      <button class="mbtn-primary" id="noteSaveBtn">保存</button>
+    </div>
+  </div>
+</div>
 
 <!-- 设置 Modal：共享文件夹 -->
 <div class="modal-mask" id="settingsModal">
@@ -757,7 +918,9 @@
     view: 'category',      // 'category' | 'group'
     query: '',
     selected: null,
-    collapsed: {}          // {groupId: true} 折叠状态
+    collapsed: {},          // {groupId: true} 折叠状态
+    notes: [],              // 留言板便利贴 [{id, html, color, created}]
+    notesCollapsed: false
   }
 
   /* ---------- localStorage 持久化 ---------- */
@@ -766,6 +929,8 @@
   var LS_FOLDERS = 'lan_share_folders'
   var LS_ORDER = 'lan_share_file_order'
   var LS_GROUP_ORDER = 'lan_share_group_order'
+  var LS_NOTES = 'lan_share_notes'
+  var LS_NOTES_COLLAPSED = 'lan_share_notes_collapsed'
   try {
     var savedAnno = localStorage.getItem(LS_ANNO)
     if (savedAnno) {
@@ -815,6 +980,12 @@
         })
       }
     }
+    var savedNotes = localStorage.getItem(LS_NOTES)
+    if (savedNotes) {
+      var ns = JSON.parse(savedNotes)
+      if (Array.isArray(ns)) state.notes = ns
+    }
+    if (localStorage.getItem(LS_NOTES_COLLAPSED) === '1') state.notesCollapsed = true
   } catch (e) { /* ignore */ }
 
   function persistAnnotations () {
@@ -1261,22 +1432,26 @@
   /* ---------- 分组 Modal ---------- */
   var groupPickModal = document.getElementById('groupPickModal')
   var groupEditModal = document.getElementById('groupEditModal')
+  var noteEditModal = document.getElementById('noteEditModal')
   var pickTarget = null
 
   function openModal (modal) { modal.classList.add('open') }
   function closeAllModals () {
     groupPickModal.classList.remove('open')
     groupEditModal.classList.remove('open')
+    noteEditModal.classList.remove('open')
   }
   document.querySelectorAll('[data-close-modal]').forEach(function (b) {
     b.addEventListener('click', closeAllModals)
   })
-  ;[groupPickModal, groupEditModal].forEach(function (m) {
+  ;[groupPickModal, groupEditModal, noteEditModal].forEach(function (m) {
     m.addEventListener('click', function (e) { if (e.target === m) closeAllModals() })
   })
   document.addEventListener('keydown', function (e) {
     if (e.key === 'Escape') {
-      if (groupPickModal.classList.contains('open') || groupEditModal.classList.contains('open')) closeAllModals()
+      if (groupPickModal.classList.contains('open') ||
+          groupEditModal.classList.contains('open') ||
+          noteEditModal.classList.contains('open')) closeAllModals()
       else if (drawer.classList.contains('open')) closeDrawer()
     }
   })
@@ -1579,9 +1754,154 @@
     settingsModal.classList.remove('open')
   })
 
+  /* ---------- 留言板 / 便利贴 ---------- */
+  var noteWall = document.getElementById('noteWall')
+  var noteGrid = document.getElementById('noteGrid')
+  var noteCount = document.getElementById('noteCount')
+  var noteEditor = document.getElementById('noteEditor')
+  var noteEditTitle = document.getElementById('noteEditTitle')
+  var editingNoteId = null
+
+  function saveNotes () {
+    try { localStorage.setItem(LS_NOTES, JSON.stringify(state.notes)) } catch (e) {}
+  }
+
+  function renderNoteWall () {
+    noteWall.classList.toggle('collapsed', !!state.notesCollapsed)
+    noteCount.textContent = state.notes.length ? state.notes.length + ' 张' : '随手记两笔'
+    noteGrid.innerHTML = ''
+    if (!state.notes.length) {
+      var empty = document.createElement('div')
+      empty.className = 'note-empty'
+      empty.textContent = state.notesCollapsed ? '' : '还没有便利贴，点右上角「记一张」写下随手要记的内容（网址、灵感、待办…）'
+      noteGrid.appendChild(empty)
+      return
+    }
+    state.notes.forEach(function (n) {
+      var card = document.createElement('div')
+      card.className = 'note ' + (n.color || 'yellow')
+      card.setAttribute('data-note-id', n.id)
+      var t = new Date(n.created)
+      var tstr = t.getFullYear() + '-' + String(t.getMonth() + 1).padStart(2, '0') + '-' + String(t.getDate()).padStart(2, '0') + ' ' + String(t.getHours()).padStart(2, '0') + ':' + String(t.getMinutes()).padStart(2, '0')
+      card.innerHTML =
+        '<div class="note-ops">' +
+          '<button data-note-edit title="编辑" aria-label="编辑便利贴">' +
+            '<svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L6.832 19.82a4.5 4.5 0 01-1.897 1.13l-2.685.8.8-2.685a4.5 4.5 0 011.13-1.897L16.862 4.487z"/></svg>' +
+          '</button>' +
+          '<button data-note-del title="删除" aria-label="删除便利贴">' +
+            '<svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>' +
+          '</button>' +
+        '</div>' +
+        '<div class="note-body">' + n.html + '</div>' +
+        '<div class="note-time">' + tstr + '</div>'
+      card.querySelector('[data-note-edit]').addEventListener('click', function () { openNoteEditor(n.id) })
+      card.querySelector('[data-note-del]').addEventListener('click', function () {
+        state.notes = state.notes.filter(function (x) { return x.id !== n.id })
+        saveNotes()
+        renderNoteWall()
+        showToast('便利贴已删除')
+      })
+      noteGrid.appendChild(card)
+    })
+  }
+
+  function resetNoteEditor () {
+    editingNoteId = null
+    noteEditor.innerHTML = ''
+    document.querySelectorAll('#noteColors .note-color').forEach(function (b) {
+      b.classList.toggle('active', b.getAttribute('data-color') === 'yellow')
+    })
+  }
+
+  function openNoteEditor (id) {
+    var n = null
+    if (id) n = state.notes.filter(function (x) { return x.id === id })[0]
+    editingNoteId = id || null
+    noteEditTitle.textContent = id ? '编辑便利贴' : '记一张便利贴'
+    noteEditor.innerHTML = n ? n.html : ''
+    document.querySelectorAll('#noteColors .note-color').forEach(function (b) {
+      b.classList.toggle('active', n ? (b.getAttribute('data-color') === n.color) : (b.getAttribute('data-color') === 'yellow'))
+    })
+    noteEditModal.classList.add('open')
+    noteEditor.focus()
+  }
+
+  document.getElementById('noteWallToggle').addEventListener('click', function (e) {
+    if (e.target.closest('.nw-add')) return
+    state.notesCollapsed = !state.notesCollapsed
+    try { localStorage.setItem(LS_NOTES_COLLAPSED, state.notesCollapsed ? '1' : '0') } catch (err) {}
+    renderNoteWall()
+  })
+  document.getElementById('noteAddBtn').addEventListener('click', function (e) {
+    e.stopPropagation()
+    resetNoteEditor()
+    noteEditModal.classList.add('open')
+    noteEditor.focus()
+  })
+  document.getElementById('noteSaveBtn').addEventListener('click', function () {
+    var html = noteEditor.innerHTML.trim()
+    if (!html || html === '<br>' || html === '<div><br></div>') { showToast('先写点内容再保存'); return }
+    var color = (document.querySelector('#noteColors .note-color.active') || {}).getAttribute && document.querySelector('#noteColors .note-color.active').getAttribute('data-color') || 'yellow'
+    if (editingNoteId) {
+      var n = state.notes.filter(function (x) { return x.id === editingNoteId })[0]
+      if (n) { n.html = html; n.color = color }
+    } else {
+      state.notes.unshift({
+        id: 'n' + Date.now(),
+        html: html,
+        color: color,
+        created: Date.now()
+      })
+    }
+    saveNotes()
+    if (state.notesCollapsed) {
+      state.notesCollapsed = false
+      try { localStorage.setItem(LS_NOTES_COLLAPSED, '0') } catch (err) {}
+    }
+    renderNoteWall()
+    noteEditModal.classList.remove('open')
+    showToast(editingNoteId ? '便利贴已更新' : '已记下一张便利贴')
+    editingNoteId = null
+  })
+  document.querySelectorAll('#noteColors .note-color').forEach(function (b) {
+    b.addEventListener('click', function () {
+      document.querySelectorAll('#noteColors .note-color').forEach(function (x) { x.classList.remove('active') })
+      b.classList.add('active')
+    })
+  })
+
+  // 富文本工具条
+  document.querySelectorAll('#noteEditModal .tt-fmt').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      var fmt = btn.getAttribute('data-fmt')
+      noteEditor.focus()
+      if (fmt === 'link') {
+        var url = prompt('输入链接地址：', 'https://')
+        if (!url) return
+        var sel = window.getSelection()
+        if (sel && !sel.isCollapsed) {
+          document.execCommand('createLink', false, url)
+          document.execCommand('unlink')
+          document.execCommand('createLink', false, url)
+        } else {
+          document.execCommand('insertHTML', false, '<a href="' + url + '" target="_blank" rel="noopener">' + url + '</a>')
+        }
+      } else if (fmt === 'clear') {
+        document.execCommand('removeFormat', false, null)
+      } else if (fmt === 'bullet') {
+        document.execCommand('insertUnorderedList', false, null)
+      } else if (fmt === 'list') {
+        document.execCommand('insertOrderedList', false, null)
+      } else {
+        document.execCommand(fmt, false, null)
+      }
+    })
+  })
+
   setupFileDnD()
   setupGroupDnD()
   renderFolderStrip()
+  renderNoteWall()
   renderViews()
 })()
 </script>

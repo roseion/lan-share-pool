@@ -54,4 +54,10 @@ console.log('OK: folder settings present')
 })
 console.log('OK: executable/app category present')
 
+// 7. 留言板 / 便利贴
+;['renderNoteWall', 'noteGrid', 'LS_NOTES', 'noteEditModal', "#noteEditModal .tt-fmt", 'createLink'].forEach(needle => {
+  if (code.indexOf(needle) === -1) { console.error('FAIL: missing note-board marker:', needle); process.exit(1) }
+})
+console.log('OK: sticky-note board present')
+
 console.log('PASS: all checks done')
