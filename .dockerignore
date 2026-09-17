@@ -1,0 +1,18 @@
+.git
+.gitignore
+.repo_memory
+
+node_modules
+demo
+test
+
+# 运行时数据与本地配置
+config.json
+data
+shared
+
+*.log
+*.md
+!README.md
+!README.en.md
+!PRODUCT_DESIGN.md

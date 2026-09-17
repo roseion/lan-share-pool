@@ -1,7 +1,8 @@
 const fs = require('fs')
+const path = require('path')
 const vm = require('vm')
 
-const html = fs.readFileSync('D:/ai/opencode/共享文件可视化项目/public/index.html', 'utf8')
+const html = fs.readFileSync(path.join(__dirname, '..', 'public', 'index.html'), 'utf8')
 const m = html.match(/<script>([\s\S]*?)<\/script>/)
 if (!m) { console.error('FAIL: no <script> block'); process.exit(1) }
 const code = m[1]
