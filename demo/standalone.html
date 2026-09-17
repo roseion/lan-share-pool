@@ -1,0 +1,680 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>共享文件池</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  :root {
+    --bg: #f8fafc;
+    --card: #ffffff;
+    --border: #e2e8f0;
+    --text: #0f172a;
+    --text-2: #64748b;
+    --accent: #2563eb;
+    --accent-2: #1d4ed8;
+    --radius: 12px;
+  }
+  html.dark {
+    --bg: #0f172a;
+    --card: #1e293b;
+    --border: #334155;
+    --text: #f1f5f9;
+    --text-2: #94a3b8;
+    --accent: #3b82f6;
+    --accent-2: #2563eb;
+  }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC",
+      "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* ---------- Header ---------- */
+  header {
+    position: sticky; top: 0; z-index: 20;
+    background: var(--card);
+    border-bottom: 1px solid var(--border);
+    box-shadow: 0 1px 3px rgba(0,0,0,.04);
+  }
+  .header-inner {
+    max-width: 1280px; margin: 0 auto;
+    padding: 12px 16px;
+    display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  }
+  .brand { display: flex; align-items: center; gap: 10px; }
+  .brand svg { width: 30px; height: 30px; color: var(--accent); flex-shrink: 0; }
+  .brand h1 { font-size: 18px; font-weight: 700; line-height: 1.2; }
+  .brand p { font-size: 11px; color: var(--text-2); }
+  .header-actions { display: flex; align-items: center; gap: 8px; }
+  .header-actions span.count,
+  .header-actions span.mobile-hint { font-size: 13px; color: var(--text-2); margin-right: 6px; }
+  .icon-btn {
+    width: 36px; height: 36px; border: none; border-radius: 8px;
+    background: transparent; color: var(--text-2); cursor: pointer;
+    display: inline-flex; align-items: center; justify-content: center;
+    transition: background .15s, color .15s;
+  }
+  .icon-btn:hover { background: var(--bg); color: var(--text); }
+  .icon-btn svg { width: 18px; height: 18px; }
+  .mobile-hint { display: none; }
+  @media (max-width: 640px) { .mobile-hint { display: inline; } .desktop-hint { display: none; } }
+
+  /* ---------- Search overlay ---------- */
+  .search-bar {
+    max-width: 1280px; margin: 0 auto; padding: 0 16px 10px;
+    display: none;
+  }
+  .search-bar.open { display: block; }
+  .search-input {
+    width: 100%; padding: 8px 12px;
+    border: 1px solid var(--border); border-radius: 8px;
+    background: var(--bg); color: var(--text); font-size: 14px;
+  }
+  .search-input:focus { outline: none; border-color: var(--accent); }
+
+  /* ---------- Tabs ---------- */
+  nav.tabs {
+    position: sticky; top: 57px; z-index: 15;
+    background: var(--bg);
+    max-width: 1280px; margin: 0 auto; padding: 0 16px 10px;
+  }
+  .tab-list { display: flex; gap: 8px; overflow-x: auto; scrollbar-width: thin; }
+  .tab {
+    flex-shrink: 0; display: inline-flex; align-items: center; gap: 6px;
+    padding: 7px 16px; border-radius: 999px;
+    border: none; cursor: pointer;
+    font-size: 14px; font-weight: 500;
+    background: transparent; color: var(--text-2);
+    transition: all .15s;
+  }
+  .tab:hover { background: rgba(100,116,139,.12); color: var(--text); }
+  .tab.active { background: var(--accent); color: #fff; box-shadow: 0 2px 8px rgba(37,99,235,.35); }
+  .tab .tab-count {
+    padding: 1px 8px; border-radius: 999px; font-size: 12px; font-weight: 600;
+    background: rgba(100,116,139,.15); color: var(--text-2);
+  }
+  .tab.active .tab-count { background: rgba(255,255,255,.25); color: #fff; }
+
+  /* ---------- File grid ---------- */
+  main { flex: 1; max-width: 1280px; margin: 0 auto; padding: 0 16px; }
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(188px, 1fr));
+    gap: 14px;
+  }
+  @media (max-width: 640px) {
+    .grid { grid-template-columns: repeat(2, 1fr); gap: 10px; }
+    .header-inner { padding: 10px 12px; }
+    nav.tabs { top: 55px; }
+  }
+  .empty { text-align: center; padding: 64px 16px; color: var(--text-2); }
+  .empty .big { font-size: 56px; margin-bottom: 8px; }
+
+  /* ---------- File card ---------- */
+  .card {
+    position: relative; background: var(--card);
+    border: 1px solid var(--border); border-radius: var(--radius);
+    overflow: hidden; cursor: pointer;
+    box-shadow: 0 1px 2px rgba(0,0,0,.04);
+    transition: transform .15s, box-shadow .15s;
+    outline: none;
+  }
+  .card:hover, .card:focus-visible {
+    box-shadow: 0 8px 20px rgba(0,0,0,.12);
+    transform: translateY(-2px);
+  }
+  .thumb {
+    position: relative; aspect-ratio: 4/3;
+    background: var(--bg); display: flex; align-items: center; justify-content: center;
+    overflow: hidden;
+  }
+  .thumb img {
+    width: 100%; height: 100%; object-fit: cover;
+  }
+  .thumb .icon {
+    font-size: 44px; line-height: 1;
+    opacity: .85;
+  }
+  .thumb .ext-label {
+    margin-top: 6px; font-size: 11px; letter-spacing: .06em;
+    text-transform: uppercase; color: var(--text-2);
+  }
+  .thumb .play-overlay {
+    position: absolute; inset: 0;
+    background: rgba(0,0,0,.28); display: flex; align-items: center; justify-content: center;
+  }
+  .thumb .play-overlay svg { width: 42px; height: 42px; color: rgba(255,255,255,.92); filter: drop-shadow(0 2px 4px rgba(0,0,0,.4)); }
+  .thumb .cat-badge {
+    position: absolute; bottom: 6px; right: 6px;
+    padding: 2px 8px; border-radius: 6px; font-size: 11px; font-weight: 600; color: #fff;
+  }
+  .cat-image .cat-badge { background: #3b82f6; }
+  .cat-video .cat-badge { background: #10b981; }
+  .cat-document .cat-badge { background: #f59e0b; }
+  .cat-code .cat-badge { background: #14b8a6; }
+  .cat-archive .cat-badge { background: #f97316; }
+  .cat-other .cat-badge { background: #94a3b8; }
+  .annotated-mark {
+    position: absolute; top: 6px; right: 6px;
+    background: var(--accent); color: #fff;
+    font-size: 11px; padding: 2px 8px; border-radius: 999px;
+    display: flex; align-items: center; gap: 3px;
+  }
+  .annotated-mark svg { width: 12px; height: 12px; }
+  .card-body { padding: 10px 12px; min-height: 62px; }
+  .card-name { font-size: 13.5px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .card-meta { margin-top: 4px; font-size: 12px; color: var(--text-2); display: flex; justify-content: space-between; }
+  .hover-actions {
+    position: absolute; top: 6px; left: 6px;
+    display: flex; gap: 6px;
+    opacity: 0; transition: opacity .15s;
+  }
+  .card:hover .hover-actions, .card:focus-visible .hover-actions { opacity: 1; }
+  .mini-btn {
+    width: 32px; height: 32px; border: none; border-radius: 8px;
+    background: rgba(255,255,255,.92); backdrop-filter: blur(4px);
+    box-shadow: 0 1px 4px rgba(0,0,0,.15);
+    display: inline-flex; align-items: center; justify-content: center;
+    color: var(--text-2); cursor: pointer; transition: color .15s, background .15s;
+  }
+  .mini-btn:hover { color: var(--accent); background: #fff; }
+  .mini-btn svg { width: 17px; height: 17px; }
+  @media (max-width: 640px) { .hover-actions { display: none; } }
+
+  /* ---------- Annotation drawer ---------- */
+  .drawer-mask {
+    position: fixed; inset: 0; z-index: 50;
+    background: rgba(0,0,0,.35); backdrop-filter: blur(2px);
+    opacity: 0; visibility: hidden; transition: opacity .2s;
+  }
+  .drawer-mask.open { opacity: 1; visibility: visible; }
+  .drawer {
+    position: fixed; top: 0; right: 0; bottom: 0; z-index: 51;
+    width: 100%; max-width: 420px;
+    background: var(--card);
+    box-shadow: -8px 0 28px rgba(0,0,0,.18);
+    transform: translateX(100%);
+    transition: transform .25s ease;
+    display: flex; flex-direction: column;
+  }
+  .drawer.open { transform: translateX(0); }
+  .drawer header {
+    position: static; display: flex; align-items: center; justify-content: space-between;
+    padding: 16px; border-bottom: 1px solid var(--border);
+  }
+  .drawer header h2 { font-size: 16px; font-weight: 600; }
+  .drawer .file-info {
+    padding: 14px 16px; border-bottom: 1px solid var(--border); background: var(--bg);
+    display: flex; gap: 12px; align-items: center;
+  }
+  .drawer .file-info .ficon {
+    width: 46px; height: 46px; flex-shrink: 0;
+    background: var(--card); border-radius: 10px;
+    display: flex; align-items: center; justify-content: center; font-size: 22px;
+  }
+  .drawer .file-info .fname { font-weight: 600; font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .drawer .file-info .fpath { font-size: 12px; color: var(--text-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .drawer .edit-area { flex: 1; padding: 16px; display: flex; flex-direction: column; gap: 8px; overflow-y: auto; }
+  .drawer label { font-size: 13px; font-weight: 600; }
+  .drawer label kbd {
+    margin-left: 6px; padding: 1px 6px; font-size: 11px; font-weight: 500;
+    background: var(--bg); border: 1px solid var(--border); border-radius: 4px;
+    color: var(--text-2); font-family: inherit;
+  }
+  .drawer textarea {
+    flex: 1; resize: none; padding: 12px; min-height: 180px;
+    border: 1px solid var(--border); border-radius: 10px;
+    background: var(--card); color: var(--text); font-size: 14px; line-height: 1.6;
+    font-family: inherit;
+  }
+  .drawer textarea:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px rgba(37,99,235,.15); }
+  .drawer .hint { font-size: 12px; color: var(--text-2); }
+  .drawer footer {
+    display: flex; gap: 10px; padding: 14px 16px; border-top: 1px solid var(--border);
+  }
+  .drawer footer button {
+    flex: 1; padding: 10px; border: none; border-radius: 10px;
+    font-size: 14px; font-weight: 600; cursor: pointer; transition: filter .15s;
+  }
+  .btn-close { background: var(--bg); color: var(--text); }
+  .btn-close:hover { filter: brightness(.96); }
+  .btn-save { background: var(--accent); color: #fff; }
+  .btn-save:hover { background: var(--accent-2); }
+  .drawer footer button:disabled { opacity: .6; cursor: not-allowed; }
+
+  /* ---------- Footer (mobile) ---------- */
+  footer.footer {
+    position: sticky; bottom: 0; z-index: 10;
+    display: none;
+    background: var(--card); border-top: 1px solid var(--border);
+    padding: 10px 16px; font-size: 12px; color: var(--text-2);
+    justify-content: space-between;
+  }
+  @media (max-width: 640px) { footer.footer { display: flex; } }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="header-inner">
+    <div class="brand">
+      <svg fill="currentColor" viewBox="0 0 24 24">
+        <path d="M10 4H4a2 2 0 00-2 2v12a2 2 0 002 2h16a2 2 0 002-2V8a2 2 0 00-2-2h-8l-2-2z"/>
+      </svg>
+      <div>
+        <h1>共享文件池</h1>
+        <p>局域网内可视化文件浏览</p>
+      </div>
+    </div>
+    <div class="header-actions">
+      <span class="count desktop-hint" id="totalCount"></span>
+      <button class="icon-btn" id="searchToggle" aria-label="搜索" title="搜索">
+        <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+        </svg>
+      </button>
+      <button class="icon-btn" id="themeToggle" aria-label="深色模式" title="深色模式">
+        <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"/>
+        </svg>
+      </button>
+    </div>
+  </div>
+  <div class="search-bar" id="searchBar">
+    <input class="search-input" id="searchInput" type="text" placeholder="搜索文件名或备注…（Esc 关闭）">
+  </div>
+</header>
+
+<nav class="tabs">
+  <div class="tab-list" id="tabList" role="tablist" aria-label="文件分类"></div>
+</nav>
+
+<main>
+  <div class="grid" id="fileGrid" role="list" aria-label="文件列表"></div>
+  <div class="empty" id="emptyState" style="display:none">
+    <div class="big">🗂️</div>
+    <p>没有匹配的文件</p>
+    <p style="font-size:13px;margin-top:4px">试试切换分类或清空搜索</p>
+  </div>
+</main>
+
+<footer class="footer">
+  <span id="footerCount"></span>
+  <span>长按卡片查看备注</span>
+</footer>
+
+<div class="drawer-mask" id="drawerMask"></div>
+<aside class="drawer" id="drawer" role="dialog" aria-modal="true" aria-labelledby="drawerTitle" aria-hidden="true">
+  <header>
+    <h2 id="drawerTitle">文件备注</h2>
+    <button class="icon-btn" id="drawerClose" aria-label="关闭">
+      <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/>
+      </svg>
+    </button>
+  </header>
+  <div class="file-info">
+    <div class="ficon" id="drawerIcon"></div>
+    <div style="flex:1;min-width:0">
+      <div class="fname" id="drawerName"></div>
+      <div class="fpath" id="drawerPath"></div>
+    </div>
+  </div>
+  <div class="edit-area">
+    <label for="annotationInput">备注内容
+      <kbd>Ctrl/⌘ + Enter</kbd> 保存
+    </label>
+    <textarea id="annotationInput" rows="8"
+      placeholder="为这个文件添加备注…&#10;例如：给客户用的最终版、待复盘、密码存档等"></textarea>
+    <p class="hint">备注会保存并同步到所有设备，实时共享</p>
+  </div>
+  <footer>
+    <button class="btn-close" id="drawerCancel">关闭</button>
+    <button class="btn-save" id="drawerSave">保存备注</button>
+  </footer>
+</aside>
+
+<script>
+(function () {
+  'use strict'
+
+  /* ---------- Mock data (对应真实项目中的 /api/files JSON) ---------- */
+  var DAY = 24 * 60 * 60 * 1000
+  var NOW = Date.now()
+
+  var FILES = [
+    { id: '1', name: '装修灵感-客厅.jpg', path: '装修/装修灵感-客厅.jpg', category: 'image', size: 2.3*1024*1024, modifiedAt: NOW-2*DAY, thumbnail: 'https://picsum.photos/seed/living-room/400/300', annotation: '给设计师看的参考图，喜欢这个配色' },
+    { id: '2', name: '全家福-2024春节.png', path: '照片/全家福-2024春节.png', category: 'image', size: 4.1*1024*1024, modifiedAt: NOW-30*DAY, thumbnail: 'https://picsum.photos/seed/family/400/300', annotation: '爷爷奶奶最喜欢这张' },
+    { id: '3', name: '猫咪日常-睡觉.webp', path: '宠物/猫咪日常-睡觉.webp', category: 'image', size: 1.8*1024*1024, modifiedAt: NOW-1*DAY, thumbnail: 'https://picsum.photos/seed/cat/400/300', annotation: '' },
+    { id: '4', name: '旅行-大理洱海.jpg', path: '旅行/大理洱海.jpg', category: 'image', size: 3.5*1024*1024, modifiedAt: NOW-60*DAY, thumbnail: 'https://picsum.photos/seed/erhai/400/300', annotation: '日落时分拍的，很美' },
+    { id: '5', name: '截图-微信聊天记录.png', path: '截图/微信聊天记录.png', category: 'image', size: 520*1024, modifiedAt: NOW-3*DAY, thumbnail: 'https://picsum.photos/seed/chat/400/300', annotation: '重要信息已备份' },
+    { id: '6', name: '设计稿-首页banner.fig.png', path: '工作/设计稿-首页banner.fig.png', category: 'image', size: 8.2*1024*1024, modifiedAt: NOW-5*DAY, thumbnail: 'https://picsum.photos/seed/banner/400/300', annotation: '已确认版本，可上线' },
+    { id: '7', name: '证件照-蓝底.jpg', path: '证件/证件照-蓝底.jpg', category: 'image', size: 380*1024, modifiedAt: NOW-120*DAY, thumbnail: 'https://picsum.photos/seed/idphoto/400/300', annotation: '最新版，有效期至2026年' },
+    { id: '8', name: '手绘草图-Logo设计.png', path: '设计/手绘草图-Logo设计.png', category: 'image', size: 1.2*1024*1024, modifiedAt: NOW-10*DAY, thumbnail: 'https://picsum.photos/seed/logo/400/300', annotation: '初稿，后续矢量化' },
+    { id: '9', name: '宝宝第一次走路.mp4', path: '视频/宝宝第一次走路.mp4', category: 'video', size: 156*1024*1024, modifiedAt: NOW-7*DAY, thumbnail: 'https://picsum.photos/seed/baby/400/300', annotation: '发给爷爷奶奶看的' },
+    { id: '10', name: '年会表演-完整版.mov', path: '视频/年会表演-完整版.mov', category: 'video', size: 2.1*1024*1024*1024, modifiedAt: NOW-45*DAY, thumbnail: 'https://picsum.photos/seed/annual/400/300', annotation: '公司年会节目，全员必看' },
+    { id: '11', name: '做菜教程-红烧肉.mp4', path: '教程/做菜教程-红烧肉.mp4', category: 'video', size: 340*1024*1024, modifiedAt: NOW-15*DAY, thumbnail: 'https://picsum.photos/seed/cooking/400/300', annotation: '奶奶亲传秘方' },
+    { id: '12', name: '旅行Vlog-云南行.webm', path: 'Vlog/云南行.webm', category: 'video', size: 890*1024*1024, modifiedAt: NOW-90*DAY, thumbnail: 'https://picsum.photos/seed/yunnan/400/300', annotation: '剪辑了一半，还差配乐' },
+    { id: '13', name: '装修合同-最终版.pdf', path: '装修/装修合同-最终版.pdf', category: 'document', size: 1.2*1024*1024, modifiedAt: NOW-3*DAY, thumbnail: '', annotation: '已盖章生效，务必保存好' },
+    { id: '14', name: '2024年终总结.docx', path: '工作/2024年终总结.docx', category: 'document', size: 890*1024, modifiedAt: NOW-20*DAY, thumbnail: '', annotation: '已提交领导审批' },
+    { id: '15', name: '家庭月度账单.xlsx', path: '财务/家庭月度账单.xlsx', category: 'document', size: 156*1024, modifiedAt: NOW-2*DAY, thumbnail: '', annotation: '1月支出超预算，需复盘' },
+    { id: '16', name: '产品需求文档-v2.3.md', path: '工作/产品需求文档-v2.3.md', category: 'document', size: 45*1024, modifiedAt: NOW-1*DAY, thumbnail: '', annotation: '新增了导出功能需求' },
+    { id: '17', name: '阅读笔记-原子习惯.txt', path: '学习/阅读笔记-原子习惯.txt', category: 'document', size: 12*1024, modifiedAt: NOW-40*DAY, thumbnail: '', annotation: '核心：微习惯，复利效应' },
+    { id: '18', name: '房屋租赁合同.pdf', path: '法律/房屋租赁合同.pdf', category: 'document', size: 2.1*1024*1024, modifiedAt: NOW-200*DAY, thumbnail: '', annotation: '电子版备份，纸质版在抽屉' },
+    { id: '19', name: 'lan-share-main.go', path: '项目/lan-share/main.go', category: 'code', size: 8.5*1024, modifiedAt: NOW-1*DAY, thumbnail: '', annotation: '入口文件，路由注册在这' },
+    { id: '20', name: 'file-scan.ts', path: '项目/lan-share/file-scan.ts', category: 'code', size: 12*1024, modifiedAt: NOW-2*DAY, thumbnail: '', annotation: '增量扫描逻辑，用fsnotify' },
+    { id: '21', name: 'CategoryView.vue', path: '项目/lan-share-frontend/src/views/CategoryView.vue', category: 'code', size: 6.2*1024, modifiedAt: NOW-3*DAY, thumbnail: '', annotation: '主视图组件' },
+    { id: '22', name: 'api-client.ts', path: '项目/lan-share-frontend/src/api/client.ts', category: 'code', size: 3.1*1024, modifiedAt: NOW-5*DAY, thumbnail: '', annotation: 'axios 封装，含拦截器' },
+    { id: '23', name: 'docker-compose.yml', path: '项目/lan-share/docker-compose.yml', category: 'code', size: 1.2*1024, modifiedAt: NOW-10*DAY, thumbnail: '', annotation: '生产环境编排，含健康检查' },
+    { id: '24', name: 'README.md', path: '项目/lan-share/README.md', category: 'code', size: 4.8*1024, modifiedAt: NOW-7*DAY, thumbnail: '', annotation: '项目文档，部署说明齐全' },
+    { id: '25', name: '照片备份-2024全年.zip', path: '备份/照片备份-2024全年.zip', category: 'archive', size: 4.2*1024*1024*1024, modifiedAt: NOW-5*DAY, thumbnail: '', annotation: '全年原图备份，约1.2万张' },
+    { id: '26', name: '项目源码-导出.rar', path: '备份/项目源码-导出.rar', category: 'archive', size: 520*1024*1024, modifiedAt: NOW-30*DAY, thumbnail: '', annotation: '不含node_modules，仅源码' },
+    { id: '27', name: '数据库备份-202412.sql.gz', path: '备份/数据库备份-202412.sql.gz', category: 'archive', size: 85*1024*1024, modifiedAt: NOW-1*DAY, thumbnail: '', annotation: '每日自动备份，保留30天' },
+    { id: '28', name: '设计素材包.7z', path: '设计/设计素材包.7z', category: 'archive', size: 1.8*1024*1024*1024, modifiedAt: NOW-15*DAY, thumbnail: '', annotation: '含字体、图标、模板' },
+    { id: '29', name: '字体包-思源黑体.ttf', path: '字体/思源黑体.ttf', category: 'other', size: 12*1024*1024, modifiedAt: NOW-60*DAY, thumbnail: '', annotation: '商用免费，全字重' },
+    { id: '30', name: '路由器固件.bin', path: '固件/路由器固件.bin', category: 'other', size: 16*1024*1024, modifiedAt: NOW-100*DAY, thumbnail: '', annotation: 'OpenWrt 23.05 稳定版' },
+    { id: '31', name: '未知文件.xyz', path: '临时/未知文件.xyz', category: 'other', size: 1024, modifiedAt: NOW-1*DAY, thumbnail: '', annotation: '下载时后缀丢失，待确认' }
+  ]
+
+  var CATEGORIES = [
+    { key: 'image', label: '图片', icon: '🖼️' },
+    { key: 'video', label: '视频', icon: '🎬' },
+    { key: 'document', label: '文档', icon: '📄' },
+    { key: 'code', label: '代码', icon: '💻' },
+    { key: 'archive', label: '压缩包', icon: '📦' },
+    { key: 'other', label: '其他', icon: '📎' }
+  ]
+
+  var CAT_LABEL = {}
+  CATEGORIES.forEach(function (c) { CAT_LABEL[c.key] = c.label })
+
+  /* 备注本地持久化（模拟真实项目的 SQLite sidecar.db） */
+  'annotation_' + '1' // no-op，避免误删语义
+
+  var state = {
+    files: FILES.map(function (f) { return Object.assign({}, f) }),
+    current: 'image',
+    query: '',
+    selected: null
+  }
+
+  // 从 localStorage 恢复备注（仅演示离线可用，真实项目走后端）
+  try {
+    var saved = localStorage.getItem('lan_share_annotations')
+    if (saved) {
+      var map = JSON.parse(saved)
+      state.files.forEach(function (f) {
+        if (map[f.id] !== undefined) f.annotation = map[f.id]
+      })
+    }
+  } catch (e) { /* ignore */ }
+
+  function persistAnnotations () {
+    try {
+      var map = {}
+      state.files.forEach(function (f) { map[f.id] = f.annotation })
+      localStorage.setItem('lan_share_annotations', JSON.stringify(map))
+    } catch (e) { /* ignore */ }
+  }
+
+  /* ---------- utils ---------- */
+  function formatSize (bytes) {
+    if (bytes < 1024) return bytes + ' B'
+    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB'
+    if (bytes < 1024 * 1024 * 1024) return (bytes / 1024 / 1024).toFixed(1) + ' MB'
+    return (bytes / 1024 / 1024 / 1024).toFixed(1) + ' GB'
+  }
+
+  function formatTime (ts) {
+    var diff = Date.now() - ts
+    if (diff < 60 * 1000) return '刚刚'
+    if (diff < 60 * 60 * 1000) return Math.floor(diff / 60000) + ' 分钟前'
+    if (diff < 24 * 60 * 60 * 1000) return Math.floor(diff / 3600000) + ' 小时前'
+    if (diff < 7 * 24 * 60 * 60 * 1000) return Math.floor(diff / 86400000) + ' 天前'
+    var d = new Date(ts)
+    return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0')
+  }
+
+  function countByCategory () {
+    var counts = {}
+    state.files.forEach(function (f) { counts[f.category] = (counts[f.category] || 0) + 1 })
+    return counts
+  }
+
+  function filteredFiles () {
+    var q = state.query.trim().toLowerCase()
+    return state.files.filter(function (f) {
+      if (f.category !== state.current) return false
+      if (!q) return true
+      return f.name.toLowerCase().indexOf(q) !== -1 ||
+             f.annotation.toLowerCase().indexOf(q) !== -1
+    })
+  }
+
+  function iconFor (cat) {
+    return { image: '🖼️', video: '🎬', document: '📄', code: '💻', archive: '📦', other: '📎' }[cat] || '📎'
+  }
+
+  /* ---------- render ---------- */
+  var tabList = document.getElementById('tabList')
+  var grid = document.getElementById('fileGrid')
+  var empty = document.getElementById('emptyState')
+  var totalCount = document.getElementById('totalCount')
+  var footerCount = document.getElementById('footerCount')
+
+  function renderTabs () {
+    var counts = countByCategory()
+    tabList.innerHTML = ''
+    CATEGORIES.forEach(function (c) {
+      var btn = document.createElement('button')
+      btn.className = 'tab' + (c.key === state.current ? ' active' : '')
+      btn.setAttribute('role', 'tab')
+      btn.setAttribute('aria-selected', c.key === state.current ? 'true' : 'false')
+      btn.innerHTML = '<span>' + c.icon + '</span> <span>' + c.label + '</span>' +
+        ' <span class="tab-count">' + (counts[c.key] || 0) + '</span>'
+      btn.addEventListener('click', function () {
+        state.current = c.key
+        renderTabs()
+        renderGrid()
+      })
+      tabList.appendChild(btn)
+    })
+  }
+
+  function playSvg () {
+    return '<svg fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>'
+  }
+  function annotateSvg () {
+    return '<svg fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>'
+  }
+  function eyeSvg () {
+    return '<svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>'
+  }
+  function downloadSvg () {
+    return '<svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>'
+  }
+
+  function openPreview (file) {
+    if (file.category === 'image' && file.thumbnail) {
+      window.open(file.thumbnail, '_blank')
+    } else {
+      alert('预览：' + file.name + '\n\n真实项目中在此打开预览页面/新标签页')
+    }
+  }
+
+  function buildCard (file) {
+    var card = document.createElement('article')
+    card.className = 'card cat-' + file.category
+    card.setAttribute('role', 'button')
+    card.setAttribute('tabindex', '0')
+    card.setAttribute('aria-label', file.name + '，' + formatSize(file.size) + '，' + formatTime(file.modifiedAt))
+
+    var thumbHtml
+    if ((file.category === 'image' || file.category === 'video') && file.thumbnail) {
+      var img = '<img src="' + file.thumbnail + '" alt="' + file.name + '" loading="lazy">'
+      if (file.thumbnail) {
+        // 缩略图加载失败时回退为图标
+        img = '<img src="' + file.thumbnail +
+          '" alt="' + file.name + '" loading="lazy" onerror="this.style.display=\'none\';this.nextElementSibling.style.display=\'flex\'">' +
+          '<div class="icon" style="display:none">' + iconFor(file.category) + '</div>'
+      }
+      var overlay = file.category === 'video'
+        ? '<div class="play-overlay">' + playSvg() + '</div>'
+        : ''
+      thumbHtml = '<div class="thumb">' + img + overlay +
+        '<span class="cat-badge">' + CAT_LABEL[file.category] + '</span></div>'
+    } else {
+      thumbHtml = '<div class="thumb"><div class="icon">' + iconFor(file.category) + '</div>' +
+        '<div class="ext-label">' + (file.name.split('.').pop() || 'file') + '</div>' +
+        '<span class="cat-badge">' + CAT_LABEL[file.category] + '</span></div>'
+    }
+
+    var markHtml = ''
+    if (file.annotation) {
+      markHtml = '<span class="annotated-mark">' + annotateSvg() + '备注</span>'
+    }
+
+    var hoverHtml =
+      '<div class="hover-actions">' +
+        '<button class="mini-btn" data-act="preview" aria-label="预览">' + eyeSvg() + '</button>' +
+        '<button class="mini-btn" data-act="download" aria-label="下载">' + downloadSvg() + '</button>' +
+      '</div>'
+
+    card.innerHTML = thumbHtml + markHtml + hoverHtml +
+      '<div class="card-body">' +
+        '<div class="card-name">' + file.name + '</div>' +
+        '<div class="card-meta"><span>' + formatSize(file.size) + '</span><span>' + formatTime(file.modifiedAt) + '</span></div>' +
+      '</div>'
+
+    card.addEventListener('click', function (e) {
+      var actBtn = e.target.closest('[data-act]')
+      if (actBtn) {
+        e.stopPropagation()
+        if (actBtn.getAttribute('data-act') === 'preview') openPreview(file)
+        else alert('下载：' + file.name + '\n\n真实项目中走 GET /files/' + encodeURIComponent(file.path) + ' 触发下载')
+        return
+      }
+      openDrawer(file)
+    })
+    card.addEventListener('keydown', function (e) {
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openDrawer(file) }
+    })
+    return card
+  }
+
+  function renderGrid () {
+    var files = filteredFiles()
+    grid.innerHTML = ''
+    if (files.length === 0) {
+      grid.style.display = 'none'
+      empty.style.display = 'block'
+    } else {
+      grid.style.display = 'grid'
+      empty.style.display = 'none'
+      files.forEach(function (f) { grid.appendChild(buildCard(f)) })
+    }
+    footerCount.textContent = files.length + ' 个文件'
+  }
+
+  function renderAll () {
+    totalCount.textContent = '共 ' + state.files.length + ' 个文件'
+    renderTabs()
+    renderGrid()
+  }
+
+  /* ---------- annotation drawer ---------- */
+  var drawer = document.getElementById('drawer')
+  var mask = document.getElementById('drawerMask')
+  var drawerIcon = document.getElementById('drawerIcon')
+  var drawerName = document.getElementById('drawerName')
+  var drawerPath = document.getElementById('drawerPath')
+  var annotationInput = document.getElementById('annotationInput')
+  var isDirty = false
+
+  function openDrawer (file) {
+    state.selected = file
+    drawerIcon.textContent = iconFor(file.category)
+    drawerName.textContent = file.name
+    drawerPath.textContent = file.path
+    annotationInput.value = file.annotation || ''
+    isDirty = false
+    drawer.classList.add('open')
+    mask.classList.add('open')
+    drawer.setAttribute('aria-hidden', 'false')
+    annotationInput.focus()
+  }
+
+  function closeDrawer () {
+    drawer.classList.remove('open')
+    mask.classList.remove('open')
+    drawer.setAttribute('aria-hidden', 'true')
+    state.selected = null
+  }
+
+  function saveAnnotation () {
+    if (!state.selected) return
+    state.selected.annotation = annotationInput.value.trim()
+    isDirty = false
+    persistAnnotations()
+    renderGrid()
+    closeDrawer()
+  }
+
+  mask.addEventListener('click', closeDrawer)
+  document.getElementById('drawerClose').addEventListener('click', closeDrawer)
+  document.getElementById('drawerCancel').addEventListener('click', closeDrawer)
+  document.getElementById('drawerSave').addEventListener('click', saveAnnotation)
+
+  annotationInput.addEventListener('input', function () { isDirty = true })
+  annotationInput.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape') { e.stopPropagation(); closeDrawer() }
+    if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') { e.preventDefault(); saveAnnotation() }
+  })
+
+  /* ---------- search & theme ---------- */
+  var searchBar = document.getElementById('searchBar')
+  var searchInput = document.getElementById('searchInput')
+  var searchOpen = false
+  document.getElementById('searchToggle').addEventListener('click', function () {
+    searchOpen = !searchOpen
+    searchBar.classList.toggle('open', searchOpen)
+    if (searchOpen) searchInput.focus()
+  })
+  searchInput.addEventListener('input', function () {
+    state.query = searchInput.value
+    renderGrid()
+  })
+  searchInput.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape') {
+      searchOpen = false
+      searchBar.classList.remove('open')
+      searchInput.blur()
+    }
+  })
+
+  document.getElementById('themeToggle').addEventListener('click', function () {
+    var dark = document.documentElement.classList.toggle('dark')
+    try { localStorage.setItem('lan_share_theme', dark ? 'dark' : 'light') } catch (e) {}
+  })
+  try {
+    if (localStorage.getItem('lan_share_theme') === 'dark') {
+      document.documentElement.classList.add('dark')
+    }
+  } catch (e) {}
+
+  /* ---------- keyboard ---------- */
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape' && drawer.classList.contains('open')) closeDrawer()
+  })
+
+  renderAll()
+})()
+</script>
+</body>
+</html>
