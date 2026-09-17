@@ -6,3 +6,8 @@ data/
 
 # demo 阶段的废弃服务器（硬编码路径、指向不存在的 dist）
 demo/server.js
+
+# 共享文件目录是运行时数据，内容不入库
+# （防止把大文件 / 密钥导出等敏感文件误提交）
+shared/*
+!shared/.gitkeep
