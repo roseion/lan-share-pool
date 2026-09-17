@@ -89,6 +89,31 @@
   }
   .search-input:focus { outline: none; border-color: var(--accent); }
 
+  /* ---------- Folder strip / settings ---------- */
+  .folder-strip {
+    max-width: 1280px; margin: 0 auto; padding: 0 16px 10px;
+  }
+  .folder-strip .chip-row { display: flex; gap: 6px; flex-wrap: wrap; }
+  .folder-chip {
+    display: inline-flex; align-items: center; gap: 6px;
+    font-size: 12px; color: var(--text-2);
+    background: var(--card); border: 1px solid var(--border);
+    padding: 3px 12px; border-radius: 8px;
+  }
+  .folder-chip b { color: var(--text); font-weight: 600; }
+  .folder-list-head {
+    display: flex; flex-direction: column; gap: 8px; margin-bottom: 6px;
+  }
+  .folder-row {
+    display: flex; align-items: center; justify-content: space-between; gap: 8px;
+    padding: 8px 10px; border: 1px solid var(--border); border-radius: 10px;
+    margin-bottom: 6px; background: var(--card);
+  }
+  .folder-row .folder-path {
+    font-size: 13px; font-family: Consolas, Menlo, monospace; color: var(--text);
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+
   /* ---------- Tabs ---------- */
   nav.tabs {
     position: sticky; top: 57px; z-index: 15;
@@ -191,6 +216,18 @@
   }
   .card-name { font-size: 13.5px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .card-meta { margin-top: 4px; font-size: 12px; color: var(--text-2); display: flex; justify-content: space-between; }
+  .card-note {
+    margin-top: 6px; font-size: 12px; line-height: 1.5; color: #92400e;
+    background: rgba(245,158,11,.12); border-radius: 6px; padding: 3px 8px;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  html.dark .card-note { color: #fcd34d; background: rgba(245,158,11,.15); }
+  .card[draggable='true'] { cursor: grab; }
+  .card.dragging { opacity: .4; }
+  .card.drop-over { border-color: var(--accent); box-shadow: 0 0 0 2px rgba(37,99,235,.25); }
+  .group-card[draggable='true'] { cursor: grab; }
+  .group-card.dragging { opacity: .4; }
+  .group-card.drop-over { border-color: var(--accent); box-shadow: 0 0 0 2px rgba(37,99,235,.25); }
   .hover-actions {
     position: absolute; top: 6px; left: 6px;
     display: flex; gap: 6px;
@@ -429,6 +466,12 @@
           <path stroke-linecap="round" stroke-linejoin="round" d="M2.25 12.75V12A2.25 2.25 0 014.5 9.75h15A2.25 2.25 0 0121.75 12v.75m-8.69-6.44l-2.12-2.12a1.5 1.5 0 00-1.061-.44H4.5A2.25 2.25 0 002.25 6v12a2.25 2.25 0 002.25 2.25h15A2.25 2.25 0 0021.75 18V9a2.25 2.25 0 00-2.25-2.25h-5.379a1.5 1.5 0 01-1.06-.44z"/>
         </svg>
       </button>
+      <button class="icon-btn" id="settingsBtn" aria-label="设置" title="设置共享文件夹">
+        <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M10.343 3.94c.09-.542.56-.94 1.11-.94h1.093c.55 0 1.02.398 1.11.94l.149.894c.07.424.384.764.78.93.398.164.855.142 1.205-.108l.737-.527a1.125 1.125 0 011.45.12l.773.774c.39.389.44 1.002.12 1.45l-.527.737c-.25.35-.272.806-.107 1.204.165.397.505.71.93.78l.893.15c.543.09.94.56.94 1.109v1.094c0 .55-.397 1.02-.94 1.11l-.893.149c-.425.07-.765.383-.93.78-.165.398-.143.854.107 1.204l.527.738c.32.447.269 1.06-.12 1.45l-.774.773a1.125 1.125 0 01-1.449.12l-.738-.527c-.35-.25-.806-.272-1.203-.107-.397.165-.71.505-.781.929l-.149.894c-.09.542-.56.94-1.11.94h-1.094c-.55 0-1.019-.398-1.11-.94l-.148-.894c-.071-.424-.384-.764-.781-.93-.398-.165-.854-.143-1.204.108l-.738.527c-.447.32-1.06.269-1.45-.12l-.773-.774a1.125 1.125 0 01-.12-1.45l.527-.737c.25-.35.273-.806.108-1.204-.165-.397-.505-.71-.93-.78l-.894-.15c-.542-.09-.94-.56-.94-1.109v-1.094c0-.55.398-1.02.94-1.11l.894-.149c.424-.07.765-.383.93-.78.165-.398.143-.854-.107-1.204l-.527-.738a1.125 1.125 0 01.12-1.45l.773-.773a1.125 1.125 0 011.45-.12l.737.527c.35.25.807.272 1.204.107.397-.165.71-.505.78-.929l.15-.894z"/>
+          <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+        </svg>
+      </button>
       <button class="icon-btn" id="searchToggle" aria-label="搜索" title="搜索">
         <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
@@ -443,6 +486,9 @@
   </div>
   <div class="search-bar" id="searchBar">
     <input class="search-input" id="searchInput" type="text" placeholder="搜索文件名或备注…（Esc 关闭）">
+  </div>
+  <div class="folder-strip" id="folderStrip" hidden>
+    <div class="chip-row" id="folderChips"></div>
   </div>
 </header>
 
@@ -493,6 +539,34 @@
 <input type="file" id="fileInput" multiple style="display:none">
 
 <div class="toast" id="toast"></div>
+
+<!-- 设置 Modal：共享文件夹 -->
+<div class="modal-mask" id="settingsModal">
+  <div class="modal">
+    <header>
+      <h3>设置 · 共享文件夹</h3>
+      <button class="icon-btn" data-close-modal aria-label="关闭">
+        <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
+      </button>
+    </header>
+    <div class="mbody">
+      <div class="folder-list-head">
+        <span style="font-size:13px;color:var(--text)">已配置的共享文件夹（真实项目即 NAS 上挂载的路径，扫描后统一在一个共享池中显示，左上角可看到全部）</span>
+      </div>
+      <div id="folderList"></div>
+      <div class="form-row" style="margin-top:10px">
+        <label for="folderInput">添加共享文件夹</label>
+        <input type="text" id="folderInput" placeholder="例如 /mnt/nas/照片 或 D:\共享文件夹">
+      </div>
+      <div style="text-align:right">
+        <button class="primary-btn" id="folderAddBtn" style="border-radius:8px">＋ 添加</button>
+      </div>
+    </div>
+    <div class="mfoot">
+      <button class="mbtn-primary" data-close-modal>完成</button>
+    </div>
+  </div>
+</div>
 
 <!-- 分组选择 Modal -->
 <div class="modal-mask" id="groupPickModal">
@@ -657,7 +731,8 @@
   var state = {
     files: FILES.map(function (f) { return Object.assign({}, f) }),
     groups: [],            // [{id, name, note, files: [fileId]}]
-    current: 'image',      // 当前分类
+    folders: [],           // 共享文件夹路径列表
+    current: 'all',        // 当前分类: 'all' | 分类key
     view: 'category',      // 'category' | 'group'
     query: '',
     selected: null,
@@ -667,6 +742,9 @@
   /* ---------- localStorage 持久化 ---------- */
   var LS_ANNO = 'lan_share_annotations'
   var LS_GROUPS = 'lan_share_groups'
+  var LS_FOLDERS = 'lan_share_folders'
+  var LS_ORDER = 'lan_share_file_order'
+  var LS_GROUP_ORDER = 'lan_share_group_order'
   try {
     var savedAnno = localStorage.getItem(LS_ANNO)
     if (savedAnno) {
@@ -684,6 +762,38 @@
       ]
       saveGroups()
     }
+    var savedFolders = localStorage.getItem(LS_FOLDERS)
+    if (savedFolders) state.folders = JSON.parse(savedFolders)
+    var savedOrder = localStorage.getItem(LS_ORDER)
+    if (savedOrder) {
+      var orderIds = JSON.parse(savedOrder)
+      if (Array.isArray(orderIds) && orderIds.length) {
+        var pos = {}
+        orderIds.forEach(function (id, i) { pos[id] = i })
+        state.files.sort(function (a, b) {
+          var ia = pos[a.id], ib = pos[b.id]
+          if (ia === undefined && ib === undefined) return 0
+          if (ia === undefined) return 1
+          if (ib === undefined) return -1
+          return ia - ib
+        })
+      }
+    }
+    var savedGroupOrder = localStorage.getItem(LS_GROUP_ORDER)
+    if (savedGroupOrder) {
+      var gord = JSON.parse(savedGroupOrder)
+      if (Array.isArray(gord) && gord.length) {
+        var gpos = {}
+        gord.forEach(function (id, i) { gpos[id] = i })
+        state.groups.sort(function (a, b) {
+          var ia = gpos[a.id], ib = gpos[b.id]
+          if (ia === undefined && ib === undefined) return 0
+          if (ia === undefined) return 1
+          if (ib === undefined) return -1
+          return ia - ib
+        })
+      }
+    }
   } catch (e) { /* ignore */ }
 
   function persistAnnotations () {
@@ -695,6 +805,15 @@
   }
   function saveGroups () {
     try { localStorage.setItem(LS_GROUPS, JSON.stringify(state.groups)) } catch (e) { /* ignore */ }
+  }
+  function saveFolders () {
+    try { localStorage.setItem(LS_FOLDERS, JSON.stringify(state.folders)) } catch (e) { /* ignore */ }
+  }
+  function saveFileOrder () {
+    try { localStorage.setItem(LS_ORDER, JSON.stringify(state.files.map(function (f) { return f.id }))) } catch (e) { /* ignore */ }
+  }
+  function saveGroupOrder () {
+    try { localStorage.setItem(LS_GROUP_ORDER, JSON.stringify(state.groups.map(function (g) { return g.id }))) } catch (e) { /* ignore */ }
   }
   function groupsOfFile (fileId) {
     return state.groups.filter(function (g) { return g.files.indexOf(fileId) !== -1 })
@@ -727,7 +846,7 @@
   function filteredFiles () {
     var q = state.query.trim().toLowerCase()
     return state.files.filter(function (f) {
-      if (f.category !== state.current) return false
+      if (state.current !== 'all' && f.category !== state.current) return false
       if (!q) return true
       return f.name.toLowerCase().indexOf(q) !== -1 ||
              f.annotation.toLowerCase().indexOf(q) !== -1
@@ -751,6 +870,22 @@
   function renderTabs () {
     var counts = countByCategory()
     tabList.innerHTML = ''
+
+    // 全部 tab
+    var allBtn = document.createElement('button')
+    var allActive = state.view === 'category' && state.current === 'all'
+    allBtn.className = 'tab' + (allActive ? ' active' : '')
+    allBtn.setAttribute('role', 'tab')
+    allBtn.setAttribute('aria-selected', allActive ? 'true' : 'false')
+    allBtn.innerHTML = '<span>🗂️</span> <span>全部</span>' +
+      ' <span class="tab-count">' + state.files.length + '</span>'
+    allBtn.addEventListener('click', function () {
+      state.view = 'category'
+      state.current = 'all'
+      renderViews()
+    })
+    tabList.appendChild(allBtn)
+
     CATEGORIES.forEach(function (c) {
       var btn = document.createElement('button')
       btn.className = 'tab' + (state.view === 'category' && c.key === state.current ? ' active' : '')
@@ -825,11 +960,13 @@
     }
   }
 
-  function buildCard (file, extraClass) {
+  function buildCard (file) {
     var card = document.createElement('article')
-    card.className = 'card cat-' + file.category + (extraClass ? ' ' + extraClass : '')
+    card.className = 'card cat-' + file.category
     card.setAttribute('role', 'button')
     card.setAttribute('tabindex', '0')
+    card.setAttribute('draggable', 'true')
+    card.setAttribute('data-id', file.id)
     card.setAttribute('aria-label', file.name + '，' + formatSize(file.size) + '，' + formatTime(file.modifiedAt))
 
     var hasThumb = file.thumb && (file.category === 'image' || file.category === 'video')
@@ -863,6 +1000,11 @@
       markHtml = '<span class="annotated-mark">' + annotateSvg() + '备注</span>'
     }
 
+    var noteHtml = ''
+    if (file.annotation) {
+      noteHtml = '<div class="card-note">' + file.annotation + '</div>'
+    }
+
     var hoverHtml =
       '<div class="hover-actions">' +
         '<button class="mini-btn" data-act="group" aria-label="分组">' + groupSvg() + '</button>' +
@@ -874,6 +1016,7 @@
       '<div class="card-body">' +
         '<div class="card-name">' + file.name + '</div>' +
         '<div class="card-meta"><span>' + formatSize(file.size) + '</span><span>' + formatTime(file.modifiedAt) + '</span></div>' +
+        noteHtml +
         groupsHtml +
       '</div>'
 
@@ -909,6 +1052,116 @@
     footerCount.textContent = files.length + ' 个文件'
   }
 
+  /* ---------- 拖拽排序 ---------- */
+  var dragId = null
+  function reorderList (arr, dragIdx, targetIdx) {
+    var moved = arr.splice(dragIdx, 1)[0]
+    arr.splice(targetIdx, 0, moved)
+  }
+  function setupFileDnD () {
+    grid.addEventListener('dragstart', function (e) {
+      var card = e.target.closest('.card')
+      if (!card) return
+      dragId = card.getAttribute('data-id')
+      card.classList.add('dragging')
+      try { e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', dragId) } catch (err) {}
+    })
+    grid.addEventListener('dragover', function (e) {
+      e.preventDefault()
+      var card = e.target.closest('.card')
+      if (card) {
+        var over = grid.querySelectorAll('.card.drop-over')
+        for (var i = 0; i < over.length; i++) over[i].classList.remove('drop-over')
+        card.classList.add('drop-over')
+      }
+    })
+    grid.addEventListener('dragleave', function (e) {
+      var card = e.target.closest('.card')
+      if (card) card.classList.remove('drop-over')
+    })
+    grid.addEventListener('drop', function (e) {
+      e.preventDefault()
+      grid.querySelectorAll('.card.drop-over').forEach(markRemoveCardClass)
+      var target = e.target.closest('.card')
+      if (dragId && target) {
+        var targetId = target.getAttribute('data-id')
+        var idxT = state.files.findIndex(function (f) { return f.id === targetId })
+        var idxD = state.files.findIndex(function (f) { return f.id === dragId })
+        if (idxT !== -1 && idxD !== -1 && idxD !== idxT) {
+          // 在数组的真实顺序里重排：目标在当前视图中的位置保持
+          var vis = filteredFiles()
+          var tvis = vis.findIndex(function (f) { return f.id === targetId })
+          var dvis = vis.findIndex(function (f) { return f.id === dragId })
+          if (tvis !== -1) {
+            if (dvis < tvis) {
+              // 被拖文件原本在目标之前，保持就位（不做跨分类顺序调整）
+              reorderList(state.files, idxD, idxT)
+            } else {
+              reorderList(state.files, idxD, idxT)
+            }
+          }
+          saveFileOrder()
+          renderViews()
+        }
+      }
+      dragId = null
+    })
+    grid.addEventListener('dragend', function () {
+      grid.querySelectorAll('.card').forEach(markRemoveCardClass)
+      dragId = null
+    })
+  }
+  function markRemoveCardClass (el) {
+    el.classList.remove('drag-over-placeholder')
+    el.classList.remove('drop-over')
+    el.classList.remove('dragging')
+  }
+  function setupGroupDnD () {
+    var list = document.getElementById('groupList')
+    list.addEventListener('dragstart', function (e) {
+      if (e.target.closest('.card')) return
+      var gc = e.target.closest('.group-card')
+      if (!gc) return
+      dragId = gc.getAttribute('data-gid')
+      gc.classList.add('dragging')
+      try { e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', dragId) } catch (err) {}
+    })
+    list.addEventListener('dragover', function (e) {
+      e.preventDefault()
+      var gc = e.target.closest('.group-card')
+      if (gc) {
+        var over = list.querySelectorAll('.group-card.drop-over')
+        for (var i = 0; i < over.length; i++) over[i].classList.remove('drop-over')
+        gc.classList.add('drop-over')
+      }
+    })
+    list.addEventListener('dragleave', function (e) {
+      var gc = e.target.closest('.group-card')
+      if (gc) gc.classList.remove('drop-over')
+    })
+    list.addEventListener('drop', function (e) {
+      e.preventDefault()
+      if (!dragId || e.target.closest('.card')) { dragId = null; return }
+      list.querySelectorAll('.group-card.drop-over').forEach(markRemoveCardClass)
+      var target = e.target.closest('.group-card')
+      if (dragId && target) {
+        var targetId = target.getAttribute('data-gid')
+        var idxT = state.groups.findIndex(function (g) { return g.id === targetId })
+        var idxD = state.groups.findIndex(function (g) { return g.id === dragId })
+        if (idxT !== -1 && idxD !== -1 && idxD !== idxT) {
+          reorderList(state.groups, idxD, idxT)
+          saveGroupOrder()
+          renderViews()
+        }
+      }
+      dragId = null
+    })
+    list.addEventListener('dragend', function () {
+      list.querySelectorAll('.group-card').forEach(markRemoveCardClass)
+      dragId = null
+    })
+  }
+
   /* ---------- 分组视图 ---------- */
   function chevronSvg () {
     return '<svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/></svg>'
@@ -929,6 +1182,8 @@
     state.groups.forEach(function (g) {
       var card = document.createElement('article')
       card.className = 'group-card' + (state.collapsed[g.id] ? '' : ' open')
+      card.setAttribute('draggable', 'true')
+      card.setAttribute('data-gid', g.id)
 
       var head = document.createElement('div')
       head.className = 'group-head'
@@ -1238,6 +1493,74 @@
     }
   } catch (e) {}
 
+  /* ---------- 设置：共享文件夹 ---------- */
+  var settingsModal = document.getElementById('settingsModal')
+  var folderList = document.getElementById('folderList')
+  var folderInput = document.getElementById('folderInput')
+  var folderStrip = document.getElementById('folderStrip')
+  var folderChips = document.getElementById('folderChips')
+
+  function renderFolderList () {
+    folderList.innerHTML = ''
+    if (!state.folders.length) {
+      folderList.innerHTML = '<div class="group-empty">还没有配置共享文件夹，添加一个即可开始浏览</div>'
+      return
+    }
+    state.folders.forEach(function (p) {
+      var row = document.createElement('div')
+      row.className = 'folder-row'
+      row.innerHTML = '<span class="folder-path">' + p + '</span>' +
+        '<button class="icon-btn" data-del-folder aria-label="移除该文件夹">' +
+          '<svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>' +
+        '</button>'
+      row.querySelector('[data-del-folder]').addEventListener('click', function () {
+        state.folders = state.folders.filter(function (x) { return x !== p })
+        saveFolders()
+        renderFolderList()
+        renderFolderStrip()
+      })
+      folderList.appendChild(row)
+    })
+  }
+
+  function renderFolderStrip () {
+    folderChips.innerHTML = ''
+    if (!state.folders.length) { folderStrip.hidden = true; return }
+    folderStrip.hidden = false
+    state.folders.forEach(function (p) {
+      var chip = document.createElement('span')
+      chip.className = 'folder-chip'
+      chip.innerHTML = '<span>📁</span> <b>' + p + '</b>'
+      folderChips.appendChild(chip)
+    })
+  }
+
+  document.getElementById('settingsBtn').addEventListener('click', function () {
+    renderFolderList()
+    settingsModal.classList.add('open')
+  })
+  document.getElementById('folderAddBtn').addEventListener('click', function () {
+    var v = folderInput.value.trim()
+    if (!v) return
+    if (state.folders.indexOf(v) !== -1) { showToast('该路径已存在'); return }
+    state.folders.push(v)
+    saveFolders()
+    folderInput.value = ''
+    renderFolderList()
+    renderFolderStrip()
+    showToast('已添加共享文件夹')
+  })
+  folderInput.addEventListener('keydown', function (e) {
+    if (e.key === 'Enter') document.getElementById('folderAddBtn').click()
+  })
+  settingsModal.addEventListener('click', function (e) { if (e.target === settingsModal) settingsModal.classList.remove('open') })
+  settingsModal.querySelector('[data-close-modal]').addEventListener('click', function () {
+    settingsModal.classList.remove('open')
+  })
+
+  setupFileDnD()
+  setupGroupDnD()
+  renderFolderStrip()
   renderViews()
 })()
 </script>

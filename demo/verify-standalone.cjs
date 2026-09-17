@@ -20,28 +20,32 @@ const cats = [...code.matchAll(/category: '(\w+)'/g)].map(x => x[1])
 const uniqueCats = [...new Set(cats)]
 if (ids !== 31) { console.error('FAIL: expected 31 files, got', ids); process.exit(1) }
 console.log('OK: 31 mock files')
-
-// 2. 文件分类映射
 if (uniqueCats.sort().join(',') !== 'archive,code,document,image,other,video') {
   console.error('FAIL: categories mismatch ->', uniqueCats); process.exit(1)
 }
 console.log('OK: 6 categories')
 
-// 3. 分组功能关键标识
-const groupChecks = [
-  "id: 'g1'", "id: 'g2'", 'openGroupPick', 'renderGroups', 'newGroupQuickInput',
-  'groupEditModal', 'saveGroups', 'groupsOfFile', 'state.groups'
-]
-groupChecks.forEach(function (needle) {
-  if (code.indexOf(needle) === -1) { console.error('FAIL: missing group marker:', needle); process.exit(1) }
+// 2. "全部" tab
+;["current: 'all'", '<span>\u5168\u90e8</span>', "state.current !== 'all' && f.category !== state.current"].forEach(needle => {
+  if (code.indexOf(needle) === -1) { console.error('FAIL: missing all-tab marker:', needle); process.exit(1) }
 })
-console.log('OK: group feature markers present (' + groupChecks.length + ')')
+console.log('OK: "全部" tab present')
 
-// 4. 上传功能标识
-const uploadChecks = ['fileInput', 'uploadBtn', 'footerUploadBtn', 'URL.createObjectURL', 'handleFiles']
-uploadChecks.forEach(function (needle) {
-  if (code.indexOf(needle) === -1) { console.error('FAIL: missing upload marker:', needle); process.exit(1) }
+// 3. 拖拽排序（文件 + 分组）
+;['setupFileDnD', 'setupGroupDnD', 'reorderList', 'saveFileOrder', 'saveGroupOrder',
+  'draggable', 'data-gid', 'data-id'].forEach(needle => {
+  if (code.indexOf(needle) === -1) { console.error('FAIL: missing DnD marker:', needle); process.exit(1) }
 })
-console.log('OK: upload feature markers present (' + uploadChecks.length + ')')
+console.log('OK: drag-sort (files + groups) present')
+
+// 4. 卡片备注行
+if (code.indexOf('card-note') === -1) { console.error('FAIL: missing card-note'); process.exit(1) }
+console.log('OK: card annotation line present')
+
+// 5. 设置-共享文件夹
+;['settingsModal', 'saveFolders', 'renderFolderList', 'folderStrip', 'LS_FOLDERS'].forEach(needle => {
+  if (code.indexOf(needle) === -1) { console.error('FAIL: missing settings marker:', needle); process.exit(1) }
+})
+console.log('OK: folder settings present')
 
 console.log('PASS: all checks done')
