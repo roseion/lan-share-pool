@@ -239,6 +239,18 @@ const server = http.createServer(async (req, res) => {
         if (!targetDir) return sendJSON(res, 400, { error: '没有可用共享文件夹' })
       }
 
+      // 可选 X-Upload-Rel：文件夹上传保存的相对子目录（如 "相册/2024"），支持多级
+      let relDir = ''
+      const relHeader = req.headers['x-upload-rel'] ? decodeURIComponent(req.headers['x-upload-rel']) : ''
+      if (relHeader) {
+        relDir = relHeader.replace(/\\/g, '/').replace(/\/{2,}/g, '/').replace(/^\/+|\/+$/g, '')
+        const segs = relDir.split('/')
+        if (!relDir || segs.indexOf('..') !== -1 || segs.indexOf('.') !== -1 || path.isAbsolute(relHeader)) {
+          return sendJSON(res, 400, { error: '相对路径无效' })
+        }
+        targetDir = path.join(targetDir, ...segs)
+      }
+
       if (!fs.existsSync(targetDir)) {
         try {
           fs.mkdirSync(targetDir, { recursive: true })

@@ -57,6 +57,20 @@ if (html.indexOf('id="uploadModal"') === -1) { console.error('FAIL: uploadModal 
 if (html.indexOf('id="uploadDirSelect"') === -1) { console.error('FAIL: uploadDirSelect element missing in HTML'); process.exit(1) }
 console.log('OK: upload target-dir wiring present')
 
+// 文件夹上传接线（webkitdirectory + 相对路径）
+const folderChecks = [
+  ["getElementById('folderUploader')", 'folderUploader lookup'],
+  ["getElementById('uploadFolderBtn')", 'uploadFolderBtn lookup'],
+  ['X-Upload-Rel', 'upload rel header'],
+  ['f.rel ?', 'rel path handling']
+]
+for (const [needle, desc] of folderChecks) {
+  if (code.indexOf(needle) === -1) { console.error('FAIL: missing', desc, '->', needle); process.exit(1) }
+}
+if (html.indexOf('id="folderUploader"') === -1) { console.error('FAIL: folderUploader input missing in HTML'); process.exit(1) }
+if (html.indexOf('webkitdirectory') === -1) { console.error('FAIL: webkitdirectory attribute missing in HTML'); process.exit(1) }
+console.log('OK: folder upload wiring present')
+
 // 删除功能接线
 const deleteChecks = [
   ["method: 'DELETE'", 'delete method'],

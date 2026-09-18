@@ -743,6 +743,7 @@
 </footer>
 
 <input type="file" id="fileInput" multiple style="display:none">
+<input type="file" id="folderUploader" multiple webkitdirectory style="display:none">
 
 <div class="toast" id="toast"></div>
 
@@ -880,7 +881,10 @@
       </div>
       <div class="form-row">
         <label>待上传文件</label>
-        <button class="primary-btn" id="uploadPickBtn" type="button" style="border-radius:8px">＋ 选择文件</button>
+        <div style="display:flex;gap:8px">
+          <button class="primary-btn" id="uploadPickBtn" type="button" style="border-radius:8px">＋ 选择文件</button>
+          <button class="primary-btn" id="uploadFolderBtn" type="button" style="border-radius:8px;background:transparent;color:var(--accent)">📁 选择文件夹</button>
+        </div>
         <div class="upload-file-list" id="uploadFileList"></div>
       </div>
     </div>
@@ -2001,8 +2005,8 @@
     pendingFiles.forEach(function (f) {
       var row = document.createElement('div')
       row.className = 'upload-file-item'
-      row.innerHTML = '<span class="uf-name"></span><span class="uf-size">' + formatSize(f.size) + '</span>'
-      row.querySelector('.uf-name').textContent = f.name
+      row.innerHTML = '<span class="uf-name"></span><span class="uf-size">' + formatSize(f.file.size) + '</span>'
+      row.querySelector('.uf-name').textContent = f.rel ? f.rel + '/' + f.file.name : f.file.name
       uploadFileList.appendChild(row)
     })
   }
@@ -2054,7 +2058,13 @@
   }
 
   function handleFiles (fileList) {
-    pendingFiles = Array.prototype.slice.call(fileList)
+    pendingFiles = Array.prototype.slice.call(fileList).map(function (f) {
+      var rel = ''
+      var wp = f.webkitRelativePath || ''
+      var slash = wp.lastIndexOf('/')
+      if (slash !== -1) rel = wp.slice(0, slash)
+      return { file: f, rel: rel }
+    })
     renderUploadFileList()
   }
 
@@ -2065,13 +2075,15 @@
       var addedDemo = 0
       var uidDemo = Date.now()
       for (var k = 0; k < pendingFiles.length; k++) {
-        var fd = pendingFiles[k]
+        var fd = pendingFiles[k].file
+        var relD = pendingFiles[k].rel || ''
+        var pathD = relD ? '上传/' + relD + '/' + fd.name : '上传/' + fd.name
         var catD = getCategoryByExt(fd.name)
         var thumbD = catD === 'image' ? URL.createObjectURL(fd) : (catD === 'video' ? svgThumb('🎬', '#fcd34d', '#f59e0b') : '')
         state.files.push({
           id: 'u' + (uidDemo + k),
           name: fd.name,
-          path: '上传/' + fd.name,
+          path: pathD,
           category: catD,
           size: fd.size,
           modifiedAt: Date.now(),
@@ -2104,10 +2116,11 @@
       fetch('/api/upload', {
         method: 'POST',
         headers: {
-          'X-File-Name': encodeURIComponent(f.name),
-          'X-Upload-Dir': encodeURIComponent(targetDir)
+          'X-File-Name': encodeURIComponent(f.file.name),
+          'X-Upload-Dir': encodeURIComponent(targetDir),
+          'X-Upload-Rel': encodeURIComponent(f.rel || '')
         },
-        body: f
+        body: f.file
       }).then(function (r) { return r.json() }).then(function (d) {
         if (d && d.ok) doneUp++
         else { failUp++; if (d && d.error && !firstErr) firstErr = d.error }
@@ -2138,11 +2151,17 @@
 
   document.getElementById('uploadBtn').addEventListener('click', openUploadModal)
   document.getElementById('footerUploadBtn').addEventListener('click', openUploadModal)
+  var folderUploader = document.getElementById('folderUploader')
   document.getElementById('uploadPickBtn').addEventListener('click', function () { fileInput.click() })
+  document.getElementById('uploadFolderBtn').addEventListener('click', function () { folderUploader.click() })
   uploadConfirmBtn.addEventListener('click', doUpload)
   fileInput.addEventListener('change', function () {
     handleFiles(fileInput.files)
     fileInput.value = ''
+  })
+  folderUploader.addEventListener('change', function () {
+    handleFiles(folderUploader.files)
+    folderUploader.value = ''
   })
 
   /* ---------- 删除文件：直接从硬盘移除 ---------- */

@@ -275,6 +275,46 @@ test('上传：不存在的目标子目录会被自动创建', async () => {
   assert.ok(fs.existsSync(path.join(target, 'a.txt')))
 })
 
+test('上传：文件夹保留相对子目录（X-Upload-Rel）', async () => {
+  const fs = await import('node:fs')
+  const path = await import('node:path')
+  const { filesRoot } = await import('./helpers.js')
+  const target = path.join(filesRoot(), 'photo')
+
+  const up = await uploadRaw('/api/upload', {
+    'X-File-Name': encodeURIComponent('IMG_001.jpg'),
+    'X-Upload-Dir': encodeURIComponent(target),
+    'X-Upload-Rel': encodeURIComponent('相册/2024/海边')
+  }, Buffer.from('fake-jpg'))
+
+  assert.equal(up.status, 201)
+  const saved = path.join(target, '相册', '2024', '海边', 'IMG_001.jpg')
+  assert.ok(fs.existsSync(saved), '文件应落在相对子目录层级')
+
+  const list = await req('GET', '/api/files')
+  const f = list.json.files.find(x => x.name === 'IMG_001.jpg')
+  assert.ok(f, '列表应包含该文件')
+  assert.equal(f.relPath, 'photo/相册/2024/海边/IMG_001.jpg')
+})
+
+test('上传：非法相对路径被拒绝', async () => {
+  const fs = await import('node:fs')
+  const path = await import('node:path')
+  const { filesRoot } = await import('./helpers.js')
+  const target = path.join(filesRoot(), 'photo')
+
+  for (const bad of ['../outside', 'a/../../x', '/abs', '..', './x']) {
+    const up = await uploadRaw('/api/upload', {
+      'X-File-Name': encodeURIComponent('bad.txt'),
+      'X-Upload-Dir': encodeURIComponent(target),
+      'X-Upload-Rel': encodeURIComponent(bad)
+    }, Buffer.from('x'))
+    assert.equal(up.status, 400, bad + ' 应被拒绝')
+    assert.match(up.json.error, /相对路径/)
+  }
+  assert.ok(!fs.existsSync(path.join(target, '..', 'outside', 'bad.txt')), '不能逃逸到共享根之外')
+})
+
 test('删除：从磁盘移除、列表消失、备注清理', async () => {
   const fs = await import('node:fs')
   const path = await import('node:path')
