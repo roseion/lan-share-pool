@@ -2545,7 +2545,9 @@
           document.execCommand('insertHTML', false, '<a href="' + url + '" target="_blank" rel="noopener">' + url + '</a>')
         }
       } else {
-        document.execCommand(fmt, false, null)
+        // 新 Chromium 已去掉 execCommand('strike') 命令名，用标准的 strikeThrough
+        var cmd = fmt === 'strike' ? 'strikeThrough' : fmt
+        document.execCommand(cmd, false, null)
       }
       } catch (err) {
         console.error('[便利贴工具栏]', err)

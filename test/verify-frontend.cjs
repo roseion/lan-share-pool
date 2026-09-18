@@ -84,6 +84,12 @@ if (code.indexOf("fmt === 'clear'") !== -1 || html.indexOf('data-fmt="clear"') !
 }
 console.log('OK: note editor clear-format removed')
 
+// 删除线：新 Chromium 已移除 execCommand('strike')，需映射到标准名 strikeThrough
+if (code.indexOf("fmt === 'strike' ? 'strikeThrough'") === -1) {
+  console.error('FAIL: strike→strikeThrough command mapping missing'); process.exit(1)
+}
+console.log('OK: strike→strikeThrough mapping present')
+
 // 删除功能接线
 const deleteChecks = [
   ["method: 'DELETE'", 'delete method'],
