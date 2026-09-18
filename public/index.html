@@ -2540,6 +2540,34 @@
     so.removeAllRanges()
     so.addRange(r0)
   }
+  // 合并相邻的同类型列表：连续行各自点“项目符号”时合成一个列表并清除中间空行，避免出现 <ul><br><ul> 交错
+  function mergeAdjacentLists (ul) {
+    while (ul.previousSibling) {
+      var p = ul.previousSibling
+      if (p.nodeName === 'BR') p = p.previousSibling
+      if (!p || p.nodeName !== ul.nodeName) break
+      var headLi = ul.firstChild
+      Array.prototype.forEach.call(p.querySelectorAll(':scope > li'), function (li) {
+        var li2 = document.createElement('li')
+        li2.innerHTML = li.innerHTML
+        ul.insertBefore(li2, headLi)
+      })
+      p.remove()
+      if (ul.previousSibling && ul.previousSibling.nodeName === 'BR') ul.previousSibling.remove()
+    }
+    while (ul.nextSibling) {
+      var nxt = ul.nextSibling
+      if (nxt.nodeName === 'BR') nxt = nxt.nextSibling
+      if (!nxt || nxt.nodeName !== ul.nodeName) break
+      Array.prototype.forEach.call(nxt.querySelectorAll(':scope > li'), function (li) {
+        var li2 = document.createElement('li')
+        li2.innerHTML = li.innerHTML
+        ul.appendChild(li2)
+      })
+      nxt.remove()
+      if (ul.nextSibling && ul.nextSibling.nodeName === 'BR') ul.nextSibling.remove()
+    }
+  }
   function editorToggleList (olist) {
     var sel = window.getSelection()
     if (!sel || sel.rangeCount === 0) {
@@ -2613,12 +2641,14 @@
       block.replaceWith(wrap)
     }
     wrap.appendChild(wrapLi)
+    mergeAdjacentLists(wrap)
     editorSelectionToEnd(wrapLi)
   }
 
   // 富文本工具条
   document.querySelectorAll('#noteEditModal .tt-fmt').forEach(function (btn) {
     btn.addEventListener('click', function () {
+      try {
       var fmt = btn.getAttribute('data-fmt')
       noteEditor.focus()
       if (fmt === 'link') {
@@ -2638,6 +2668,9 @@
         editorToggleList(false)
       } else {
         document.execCommand(fmt, false, null)
+      }
+      } catch (err) {
+        console.error('[便利贴工具栏]', err)
       }
     })
   })
