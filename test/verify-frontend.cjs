@@ -71,6 +71,12 @@ if (html.indexOf('id="folderUploader"') === -1) { console.error('FAIL: folderUpl
 if (html.indexOf('webkitdirectory') === -1) { console.error('FAIL: webkitdirectory attribute missing in HTML'); process.exit(1) }
 console.log('OK: folder upload wiring present')
 
+// 便利贴编辑器：自研列表切换（不依赖 execCommand）必须存在
+if (code.indexOf('editorToggleList') === -1 || code.indexOf('wrap.appendChild(wrapLi)') === -1) {
+  console.error('FAIL: editorToggleList wiring missing in code'); process.exit(1)
+}
+console.log('OK: note editor list wiring present')
+
 // 删除功能接线
 const deleteChecks = [
   ["method: 'DELETE'", 'delete method'],

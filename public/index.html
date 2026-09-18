@@ -226,6 +226,10 @@
   .note-editor:focus { border-color: var(--accent); }
   .note-editor:empty::before { content: attr(data-placeholder); color: var(--text-2); pointer-events: none; }
   .note-editor a { color: var(--accent); text-decoration: underline; }
+  .note-editor ul { margin: 4px 0; padding-left: 22px; }
+  .note-editor ul > li { list-style: disc; margin: 2px 0; }
+  .note-editor ol { margin: 4px 0; padding-left: 22px; }
+  .note-editor ol > li { list-style: decimal; margin: 2px 0; }
   .note-colors { display: flex; gap: 8px; }
   .note-color {
     width: 30px; height: 30px; border-radius: 50%; cursor: pointer;
@@ -2527,6 +2531,91 @@
     })
   })
 
+  // 列表切换：纯 DOM 实现，不依赖 execCommand（Chromium 新版对列表命令不稳定）
+  function editorSelectionToEnd (el) {
+    var so = window.getSelection()
+    var r0 = document.createRange()
+    r0.selectNodeContents(el)
+    r0.collapse(false)
+    so.removeAllRanges()
+    so.addRange(r0)
+  }
+  function editorToggleList (olist) {
+    var sel = window.getSelection()
+    if (!sel || sel.rangeCount === 0) {
+      noteEditor.focus()
+      sel = window.getSelection()
+    }
+    if (!sel || sel.rangeCount === 0) return
+    var range = sel.getRangeAt(0)
+    var node = range.startContainer
+    var el = node.nodeType === 3 ? node.parentNode : node
+
+    var li = el
+    while (li && li !== noteEditor && li.tagName !== 'LI') li = li.parentNode
+    var curList = li && li.tagName === 'LI' && li.parentNode ? li.parentNode : null
+    var newTag = olist ? 'OL' : 'UL'
+
+    if (curList) {
+      Array.prototype.slice.call(curList.children).forEach(function (it) {
+        if (it.tagName !== 'LI') curList.removeChild(it)
+      })
+      var allLi = Array.prototype.slice.call(curList.children)
+      if (curList.tagName === newTag) {
+        // 同类型：取消列表，每行还原为 div
+        var back = document.createDocumentFragment()
+        allLi.forEach(function (it) {
+          var d = document.createElement('div')
+          d.className = 'note-plain'
+          d.innerHTML = it.innerHTML
+          back.appendChild(d)
+        })
+        curList.replaceWith(back)
+        var firstBack = back.firstElementChild
+        if (firstBack) editorSelectionToEnd(firstBack)
+      } else {
+        // 不同类型：原地转换（有序↔无序）
+        var nl = document.createElement(newTag)
+        allLi.forEach(function (it) {
+          var li2 = document.createElement('li')
+          li2.innerHTML = it.innerHTML
+          nl.appendChild(li2)
+        })
+        var keepIdx = Math.max(0, allLi.indexOf(li))
+        curList.replaceWith(nl)
+        var keep = nl.children[Math.min(keepIdx, nl.children.length - 1)]
+        if (keep) editorSelectionToEnd(keep)
+      }
+      return
+    }
+
+    // 不在列表中：把光标所在行变为 <ul><li>…</li></ul>
+    var block = el
+    while (block && block !== noteEditor) {
+      var bg = block.tagName
+      if (bg === 'DIV' || bg === 'P' || bg === 'UL' || bg === 'OL' || bg === 'BLOCKQUOTE') break
+      block = block.parentNode
+    }
+    var wrap = document.createElement(newTag)
+    var wrapLi = document.createElement('li')
+    if (block === noteEditor || !block) {
+      // 顶层无块：只处理光标所在文本节点这一行，绝不整体替换编辑器
+      var textNode = node.nodeType === 3 ? node : null
+      if (!textNode) {
+        textNode = document.createTextNode('')
+        if (node.parentNode) node.parentNode.insertBefore(textNode, node)
+        else noteEditor.appendChild(textNode)
+      }
+      wrapLi.textContent = textNode.data
+      textNode.replaceWith(wrap)
+    } else {
+      wrapLi.innerHTML = block.innerHTML
+      block.replaceWith(wrap)
+    }
+    wrap.appendChild(wrapLi)
+    editorSelectionToEnd(wrapLi)
+  }
+
   // 富文本工具条
   document.querySelectorAll('#noteEditModal .tt-fmt').forEach(function (btn) {
     btn.addEventListener('click', function () {
@@ -2545,10 +2634,8 @@
         }
       } else if (fmt === 'clear') {
         document.execCommand('removeFormat', false, null)
-      } else if (fmt === 'bullet') {
-        document.execCommand('insertUnorderedList', false, null)
-      } else if (fmt === 'list') {
-        document.execCommand('insertOrderedList', false, null)
+      } else if (fmt === 'list' || fmt === 'bullet') {
+        editorToggleList(false)
       } else {
         document.execCommand(fmt, false, null)
       }
