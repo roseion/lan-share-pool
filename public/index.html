@@ -66,6 +66,24 @@
   @media (max-width: 640px) { .mobile-hint { display: inline; } .desktop-hint { display: none; } }
   .icon-btn.highlight { color: var(--accent); }
 
+  /* ---------- 数据统计看板（顶部常驻胶囊） ---------- */
+  .stats-bar {
+    flex: 1; display: flex; align-items: center; gap: 6px;
+    overflow-x: auto; scrollbar-width: none;
+    padding: 2px 6px; min-width: 0;
+  }
+  .stats-bar::-webkit-scrollbar { display: none; }
+  .stat-pill {
+    display: inline-flex; align-items: center; gap: 5px;
+    padding: 3px 10px; border-radius: 999px;
+    background: rgba(100,116,139,.12); color: var(--text-2);
+    font-size: 12px; white-space: nowrap;
+  }
+  .stat-pill b { font-weight: 600; color: var(--text); }
+  .stat-pill.main { background: rgba(37,99,235,.13); color: var(--accent); }
+  .stat-pill.main b { color: var(--accent); }
+  @media (max-width: 760px) { .stat-pill.cat-pill { display: none; } }
+
   /* ---------- Upload toast ---------- */
   .toast {
     position: fixed; left: 50%; top: 14px; transform: translateX(-50%) translateY(-80px);
@@ -379,6 +397,8 @@
   .select-bar[hidden] { display: none; }
   .select-bar .sb-count { color: #cbd5e1; }
   .select-bar .sb-count b { color: #fff; font-size: 15px; }
+  .select-bar .sb-size { color: #cbd5e1; font-size: 12px; }
+  .select-bar .sb-size b { color: #fff; font-size: 13px; }
   .select-bar button {
     border: none; border-radius: 999px; padding: 7px 16px;
     font-size: 13.5px; font-weight: 600; cursor: pointer;
@@ -623,8 +643,8 @@
         <p>局域网内可视化文件浏览</p>
       </div>
     </div>
+    <div class="stats-bar" id="statsBar"></div>
     <div class="header-actions">
-      <span class="count desktop-hint" id="totalCount"></span>
       <button class="icon-btn" id="uploadBtn" aria-label="上传" title="上传文件">
         <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M7.5 8.25L12 3.75l4.5 4.5M12 3.75v12"/>
@@ -927,7 +947,8 @@
 
 <!-- 批量选择底部操作栏 -->
 <div class="select-bar" id="selectBar" hidden>
-  <span class="sb-count"><b id="selectCount">0</b> 个已选</span>
+  <span class="sb-count"><b id="selectCount">0</b> 个已选 ·</span>
+  <span class="sb-size">共 <b id="selectSize">0 B</b></span>
   <button id="selectGroupBtn" type="button">加入分组</button>
   <button id="selectClearBtn" type="button">清空</button>
 </div>
@@ -1245,7 +1266,7 @@
   var tabList = document.getElementById('tabList')
   var grid = document.getElementById('fileGrid')
   var empty = document.getElementById('emptyState')
-  var totalCount = document.getElementById('totalCount')
+  var statsBar = document.getElementById('statsBar')
   var footerCount = document.getElementById('footerCount')
   var categoryView = document.getElementById('categoryView')
   var groupView = document.getElementById('groupView')
@@ -1311,8 +1332,30 @@
     renderViews()
   })
 
+  /* ---------- 数据统计看板 ---------- */
+  function renderStats () {
+    var totalBytes = 0
+    var byCat = {}
+    CATEGORIES.forEach(function (c) { byCat[c.key] = { count: 0, bytes: 0 } })
+    state.files.forEach(function (f) {
+      var k = byCat[f.category] ? f.category : 'other'
+      byCat[k].count++
+      byCat[k].bytes += f.size || 0
+      totalBytes += f.size || 0
+    })
+    var html = '<span class="stat-pill main">共 <b>' + state.files.length + '</b> 个文件 · ' +
+      formatSize(totalBytes) + '</span>'
+    CATEGORIES.forEach(function (c) {
+      var s = byCat[c.key]
+      if (s.count > 0) {
+        html += '<span class="stat-pill cat-pill">' + c.icon + ' <b>' + s.count + '</b> · ' + formatSize(s.bytes) + '</span>'
+      }
+    })
+    statsBar.innerHTML = html
+  }
+
   function renderViews () {
-    totalCount.textContent = '共 ' + state.files.length + ' 个文件'
+    renderStats()
     renderTabs()
     if (state.view === 'group') {
       categoryView.hidden = true
@@ -1481,10 +1524,15 @@
     updateSelectBar()
   }
 
+  var selectSizeEl = document.getElementById('selectSize')
+
   function updateSelectBar () {
     var n = Object.keys(state.selectedIds).length
     selectBar.hidden = n === 0
     selectCount.textContent = String(n)
+    var bytes = 0
+    state.files.forEach(function (f) { if (state.selectedIds[f.id]) bytes += f.size || 0 })
+    selectSizeEl.textContent = formatSize(bytes)
   }
 
   function clearSelection () {

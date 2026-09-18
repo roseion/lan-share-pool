@@ -76,6 +76,20 @@ if (!/\.hover-actions \{[\s\S]{0,160}flex-wrap: wrap[\s\S]{0,60}width: 70px/.tes
 }
 console.log('OK: hover-actions wraps (2x2)')
 
+// 数据统计看板接线（顶部总览胶囊 + 选中大小）
+const statsChecks = [
+  ['function renderStats', 'renderStats'],
+  ['function updateSelectBar', 'updateSelectBar'],
+  ['formatSize(totalBytes)', 'total bytes calc'],
+  ['selectSizeEl.textContent', 'selected-size display']
+]
+for (const [needle, desc] of statsChecks) {
+  if (code.indexOf(needle) === -1) { console.error('FAIL: missing', desc, '->', needle); process.exit(1) }
+}
+if (html.indexOf('id="statsBar"') === -1) { console.error('FAIL: statsBar element missing in HTML'); process.exit(1) }
+if (html.indexOf('id="selectSize"') === -1) { console.error('FAIL: selectSize element missing in HTML'); process.exit(1) }
+console.log('OK: stats dashboard wiring present')
+
 // 批量选择功能接线检查
 const batchChecks = [
   ['selectedIds', 'selection state'],
