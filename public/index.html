@@ -768,10 +768,8 @@
         <button type="button" data-fmt="strike" title="删除线" class="tt-fmt" style="text-decoration:line-through">S</button>
         <span class="tsep"></span>
         <button type="button" data-fmt="link" title="插入链接" class="tt-fmt">🔗</button>
-        <span class="tsep"></span>
-        <button type="button" data-fmt="clear" title="清除格式" class="tt-fmt tbtn-wide">清除格式</button>
       </div>
-      <div class="note-editor" id="noteEditor" contenteditable="true" data-placeholder="写点什么… 支持加粗、斜体、链接、列表等。例如：把常用网址、临时灵感、待办事项记在这里。"></div>
+      <div class="note-editor" id="noteEditor" contenteditable="true" data-placeholder="写点什么… 支持加粗、斜体、链接等。例如：把常用网址、临时灵感、待办事项记在这里。"></div>
       <div class="form-row" style="margin-top:12px">
         <label>便利贴颜色</label>
         <div class="note-colors" id="noteColors">
@@ -2546,8 +2544,6 @@
         } else {
           document.execCommand('insertHTML', false, '<a href="' + url + '" target="_blank" rel="noopener">' + url + '</a>')
         }
-      } else if (fmt === 'clear') {
-        document.execCommand('removeFormat', false, null)
       } else {
         document.execCommand(fmt, false, null)
       }

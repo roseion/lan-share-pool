@@ -78,6 +78,12 @@ if (code.indexOf('editorToggleList') !== -1 || html.indexOf('data-fmt="list"') !
 }
 console.log('OK: note editor list feature removed')
 
+// 清除格式同样移除（execCommand('removeFormat') 在 Chromium 上对 contenteditable 作用不稳定）
+if (code.indexOf("fmt === 'clear'") !== -1 || html.indexOf('data-fmt="clear"') !== -1) {
+  console.error('FAIL: note clear-format feature should be removed'); process.exit(1)
+}
+console.log('OK: note editor clear-format removed')
+
 // 删除功能接线
 const deleteChecks = [
   ["method: 'DELETE'", 'delete method'],
