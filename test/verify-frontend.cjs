@@ -71,11 +71,12 @@ if (html.indexOf('id="folderUploader"') === -1) { console.error('FAIL: folderUpl
 if (html.indexOf('webkitdirectory') === -1) { console.error('FAIL: webkitdirectory attribute missing in HTML'); process.exit(1) }
 console.log('OK: folder upload wiring present')
 
-// 便利贴编辑器：自研列表切换（不依赖 execCommand）必须存在
-if (code.indexOf('editorToggleList') === -1 || code.indexOf('wrap.appendChild(wrapLi)') === -1) {
-  console.error('FAIL: editorToggleList wiring missing in code'); process.exit(1)
+// 便利贴编辑器：项目符号／无序列表已整体移除（contenteditable 列表在 Chromium 上不稳定、多次出现结构错乱），
+// 避免编辑器残留游离列表，剩余格式走 execCommand 之常规命令
+if (code.indexOf('editorToggleList') !== -1 || html.indexOf('data-fmt="list"') !== -1 || html.indexOf('data-fmt="bullet"') !== -1) {
+  console.error('FAIL: note list feature should be removed (editorToggleList / data-fmt=list|bullet)'); process.exit(1)
 }
-console.log('OK: note editor list wiring present')
+console.log('OK: note editor list feature removed')
 
 // 删除功能接线
 const deleteChecks = [
